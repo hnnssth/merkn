@@ -10,6 +10,9 @@ Minimalistische Notizen-App für Privat, Beruflich und Freelance. Läuft ohne KI
 - Tags per `#tag` im Text oder als Chip, Suche mit `#tag` und Volltext
 - Checklisten mit Abhaken, Bilder, Anheften, Archiv
 - Diktat über das Mikrofon in Chrome (Android und Desktop)
+- Audio: direkt aufnehmen oder Audiodateien anhängen und abspielen (bis 25 MB pro Aufnahme, liegen im Repo unter `audio/`)
+- Teilen an Merkn (Android): Wenn Merkn installiert ist, erscheint es im Teilen-Menü anderer Apps, z. B. im Samsung Diktiergerät. Aufnahme und Text werden zur neuen Notiz.
+- Ordner importieren (Einstellungen): lädt einen Ordner mit `notes`, `images` und `audio` auf einmal hoch, z. B. den umgewandelten Google-Keep-Export
 - Übergabe an Claude: Aktuelle Ansicht oder einzelne Notiz mit einem Knopf kopieren. Antworten aus Claude über „Von Claude übernehmen“ wieder einfügen.
 - Funktioniert offline und synchronisiert, sobald wieder Netz da ist
 
