@@ -533,17 +533,28 @@ async function pushNotes(remote){
   }
 }
 async function pullNotes(remote){
-  const seen = new Set();
+  const seen = new Set(), todo = [];
   for (const [path, sha] of remote) {
     if (!path.startsWith("notes/") || !path.endsWith(".md")) continue;
     const id = path.slice(6, -3); seen.add(id);
     const local = S.notes.get(id);
     if (local && (local._sha === sha || local._dirty)) continue;
-    const n = fromMarkdown(await fetchBlobText(sha), id);
-    n.id = id; n._sha = sha; n._dirty = false; n._rev = 0;
-    if (S.open && S.open.id === id) { Object.assign(S.open, n); renderEditor(true); }
-    S.notes.set(id, S.open && S.open.id === id ? S.open : n);
+    todo.push([id, sha]);
   }
+  // Mehrere Notizen gleichzeitig laden (schneller beim ersten Mal auf einem neuen Gerät)
+  let next = 0, done = 0;
+  const worker = async () => {
+    while (next < todo.length) {
+      const [id, sha] = todo[next++];
+      const n = fromMarkdown(await fetchBlobText(sha), id);
+      n.id = id; n._sha = sha; n._dirty = false; n._rev = 0;
+      if (S.open && S.open.id === id) { if (!S.open._edited) { Object.assign(S.open, n); renderEditor(true); } }
+      else S.notes.set(id, n);
+      done++;
+      if (done % 100 === 0) { persist(); setStatus("sync", `Lade Notizen: ${done} von ${todo.length}`); if (!S.open) render(); }
+    }
+  };
+  await Promise.all(Array.from({length: Math.min(8, todo.length)}, worker));
   for (const n of [...S.notes.values()]) if (n._sha && !n._dirty && !seen.has(n.id)) S.notes.delete(n.id);
   persist();
 }
@@ -680,7 +691,7 @@ async function checkShareInbox(){
 function setStatus(s, msg=""){ S.status = s; S.statusMsg = msg; const d = $("#status"); if (d) { d.dataset.s = s; d.parentElement.title = statusText(); } }
 function statusText(){
   if (S.status === "local") return "Nur auf diesem Gerät gespeichert";
-  if (S.status === "sync") return "Wird synchronisiert …";
+  if (S.status === "sync") return S.statusMsg || "Wird synchronisiert …";
   if (S.status === "pending") return S.statusMsg || "Änderungen warten auf Synchronisation";
   if (S.status === "err") return S.statusMsg;
   return "Synchronisiert" + (S.lastSync ? " um " + new Date(S.lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "");
