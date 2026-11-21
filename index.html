@@ -480,11 +480,11 @@ async function sync(){
   syncing = true; setStatus("sync");
   try {
     const remote = await fetchTree();
+    await syncSettings(remote);
     await bulkPush(remote);
     await pushImages(remote);
     await pushNotes(remote);
     await pullNotes(remote);
-    await syncSettings(remote);
     S.lastSync = Date.now(); persist();
     const pending = [...S.notes.values()].some(n => n._dirty) || S.pendingImg.length;
     setStatus(pending ? "pending" : "ok");
@@ -602,14 +602,23 @@ async function pullNotes(remote){
   persist();
 }
 async function syncSettings(remote){
-  const path = "merkn-config.json", rsha = remote.get(path);
-  const st = S.settings;
+  const path = "merkn-config.json", rsha = remote.get(path), st = S.settings;
+  let rc = null;
+  if (rsha && rsha !== st._sha) { try { rc = JSON.parse(await fetchBlobText(rsha)); } catch {} }
   if (st._dirty) {
+    if (rc) { // auf einem anderen Gerät geändert: Favoriten von beiden Seiten zusammenführen
+      const base = st._baseFav || [], mine = st.favTags || [], theirs = Array.isArray(rc.favTags) ? rc.favTags : [];
+      const added = mine.filter(t => !base.includes(t)), removed = base.filter(t => !mine.includes(t));
+      st.favTags = [...new Set([...theirs, ...added])].filter(t => !removed.includes(t));
+    }
     const r = await putFile(path, textToB64(JSON.stringify({keywords:st.keywords, fallback:st.fallback, favTags:st.favTags||[]}, null, 2)), rsha, "Einstellungen");
     if (!r.ok) throw new Error(await ghErr(r));
-    st._sha = (await r.json()).content.sha; st._dirty = false;
-  } else if (rsha && rsha !== st._sha) {
-    try { const c = JSON.parse(await fetchBlobText(rsha)); if (c.keywords) st.keywords = c.keywords; if (c.fallback) st.fallback = c.fallback; if (Array.isArray(c.favTags)) st.favTags = c.favTags; st._sha = rsha; } catch {}
+    st._sha = (await r.json()).content.sha; st._dirty = false; st._baseFav = [...(st.favTags||[])];
+    remote.set(path, st._sha);
+  } else if (rc) {
+    if (rc.keywords) st.keywords = rc.keywords; if (rc.fallback) st.fallback = rc.fallback;
+    if (Array.isArray(rc.favTags)) st.favTags = rc.favTags;
+    st._sha = rsha; st._baseFav = [...(st.favTags||[])];
   }
 }
 
