@@ -190,7 +190,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .recbar button{background:var(--bg);color:var(--ink);font-weight:600;padding:6px 14px;border-radius:999px}
 .note.compact{padding:11px 0 11px 16px;grid-template-columns:1fr}
 .note.compact::before{top:13px;bottom:13px;opacity:.55}
-.ts{display:block;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;margin-bottom:1px}
+.ts{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;margin:0 0 1px}
 .cb{margin:0;font-size:15.5px;line-height:1.45;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .group.month{margin-top:24px;color:var(--muted);font-weight:600}
 .more{display:block;margin:18px 0 0;padding:10px 14px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:14px}
@@ -793,7 +793,7 @@ const stamp = iso => { const d = new Date(iso); return d.toLocaleDateString("de-
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
 function noteRow(n){
   if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen">
-    <div><time class="ts" datetime="${esc(n.created)}">${stamp(n.created)}</time><p class="cb">${esc(n.body.trim())}</p></div></li>`;
+    <div><p class="ts"><time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(n.body.trim())}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const snippet = n.body.trim() || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
   const title = n.title.trim() || (n.body.trim() ? "" : "");
@@ -804,7 +804,7 @@ function noteRow(n){
       <div class="nm">
         ${total ? `<span class="prog ${open ? "" : "done"}">${total-open}/${total} erledigt</span>` : ""}
         ${(n.audio||[]).length ? `<span>${n.audio.length === 1 ? "1 Aufnahme" : n.audio.length + " Aufnahmen"}</span>` : ""}
-        ${n.tags.slice(0,4).map(t => `<span>#${esc(t)}</span>`).join("")}
+        ${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}
         <span>${S.view.sort === "created" ? stamp(n.created) : relDate(n.updated)}</span>
       </div>
     </div>
