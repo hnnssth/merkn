@@ -6,6 +6,7 @@
 <title>Merkn</title>
 <meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("merkn-theme")||"auto"}catch(e){document.documentElement.dataset.theme="auto"}</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -21,10 +22,18 @@
   --text:"Instrument Sans", system-ui, sans-serif;
   --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme: dark){
-  :root{ --bg:#141917; --sheet:#1A201D; --ink:#E4E9E6; --muted:#97A19C; --faint:#69736E; --line:#2A322E;
-    --privat:#7BB487; --beruflich:#86A2E8; --freelance:#E3A84A; --danger:#E07A66; }
-}
+@media (prefers-color-scheme: dark){ :root[data-theme="auto"]{ --bg:#141917; --sheet:#1A201D; --ink:#E4E9E6; --muted:#97A19C; --faint:#69736E; --line:#2A322E; --privat:#7BB487; --beruflich:#86A2E8; --freelance:#E3A84A; --danger:#E07A66; color-scheme:dark; } }
+:root[data-theme="nacht"]{ --bg:#141917; --sheet:#1A201D; --ink:#E4E9E6; --muted:#97A19C; --faint:#69736E; --line:#2A322E; --privat:#7BB487; --beruflich:#86A2E8; --freelance:#E3A84A; --danger:#E07A66; color-scheme:dark; }
+:root[data-theme="schiefer"]{ --bg:#EEF1F5; --sheet:#F6F8FA; --ink:#18202B; --muted:#5F6B7A; --faint:#98A2AF; --line:#D6DCE4; --privat:#3F8F7A; --beruflich:#3A5FCD; --freelance:#C26A1B; }
+:root[data-theme="leinen"]{ --bg:#F3EFE7; --sheet:#F8F5EF; --ink:#2A2420; --muted:#756A60; --faint:#A69B90; --line:#E0D8CC; --privat:#5E8A55; --beruflich:#3E5C9A; --freelance:#B8742A; }
+:root[data-theme="tinte"]{ --bg:#0F1522; --sheet:#151C2B; --ink:#E3E8F2; --muted:#96A1B5; --faint:#5E6A80; --line:#243047; --privat:#6FC2A0; --beruflich:#8DA8FF; --freelance:#F0B35A; --danger:#F08A78; color-scheme:dark; }
+:root[data-theme="kontrast"]{ --bg:#FFFFFF; --sheet:#FFFFFF; --ink:#000000; --muted:#3D3D3D; --faint:#6E6E6E; --line:#C9C9C9; --privat:#1F7A3A; --beruflich:#1D4ED8; --freelance:#A84F06; }
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:4px 0 6px}
+.theme{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);text-align:left;font-size:14px;font-weight:500}
+.theme[aria-pressed="true"]{border-color:var(--ink)}
+.theme .sw{display:flex;align-items:center;gap:4px;padding:6px 8px;border-radius:8px;width:100%}
+.theme .sw i{width:10px;height:10px;border-radius:50%}
+.theme .sw b{flex:1;height:4px;border-radius:2px;margin-left:4px}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:color-mix(in srgb, var(--area) 4%, var(--bg));color:var(--ink);font:400 16px/1.5 var(--text);transition:background-color .35s ease;min-height:100vh}
@@ -185,7 +194,10 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .cb{margin:0;font-size:15.5px;line-height:1.45;white-space:pre-line;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .group.month{margin-top:24px;color:var(--muted);font-weight:600}
 .more{display:block;margin:18px 0 0;padding:10px 14px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:14px}
-.countline{color:var(--faint);font-size:13px;margin:16px 0 0}
+.countline{color:var(--faint);font-size:13px;margin:0}
+.endrow{display:flex;justify-content:space-between;align-items:center;margin:16px 0 0;padding-right:76px}
+.totop{display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:14px;font-weight:500}
+.totop:hover{color:var(--ink);border-color:var(--ink)}
 .timechip{display:inline-flex;align-items:center;gap:5px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -241,6 +253,23 @@ const ICON = {
   x:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   sync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.7L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.7L20 16M20 20v-4h-4"/></svg>'
 };
+
+/* ---------- Designs ---------- */
+const THEMES = [
+  ["auto","Automatisch",["#F2F4F1","#1B2420","#4F8A5B","#3556A8","#C47D16"]],
+  ["kalk","Kalk",["#F2F4F1","#1B2420","#4F8A5B","#3556A8","#C47D16"]],
+  ["nacht","Nacht",["#141917","#E4E9E6","#7BB487","#86A2E8","#E3A84A"]],
+  ["schiefer","Schiefer",["#EEF1F5","#18202B","#3F8F7A","#3A5FCD","#C26A1B"]],
+  ["leinen","Leinen",["#F3EFE7","#2A2420","#5E8A55","#3E5C9A","#B8742A"]],
+  ["tinte","Tinte",["#0F1522","#E3E8F2","#6FC2A0","#8DA8FF","#F0B35A"]],
+  ["kontrast","Kontrast",["#FFFFFF","#000000","#1F7A3A","#1D4ED8","#A84F06"]]
+];
+function applyTheme(t){
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("merkn-theme", t); } catch {}
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute("content", bg));
+}
 
 /* ---------- Lokaler Speicher (IndexedDB) ---------- */
 const idb = (() => {
@@ -809,7 +838,7 @@ function render(){
     } else groups = `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
     body = (pinned.length ? `<p class="group">Angeheftet</p><ul class="list">${pinned.map(noteRow).join("")}</ul>` : "") + groups
       + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
-      + `<p class="countline">${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}</p>`;
+      + `<div class="endrow"><p class="countline">${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
   app.innerHTML = `<div class="wrap">
     <header class="top">
@@ -838,6 +867,7 @@ function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!
 function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
+  const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
   document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; S.view.limit = 150; render(); });
   document.querySelectorAll(".tag[data-t]").forEach(b => b.onclick = () => { S.view.limit = 150; S.view.tag = S.view.tag === b.dataset.t ? null : b.dataset.t; render(); });
@@ -1079,7 +1109,7 @@ function dialog(html, onBind){
   const d = document.createElement("div"); d.className = "dialog"; d.id = "dlg"; d.setAttribute("role","dialog"); d.setAttribute("aria-modal","true"); d.innerHTML = html;
   document.body.append(scrim, d);
   d.onkeydown = e => { if (e.key === "Escape") closeDialog(); };
-  onBind(d); (d.querySelector("input,textarea,.btn.primary") || d).focus?.();
+  onBind(d); (d.querySelector("input,textarea,.btn.primary") || d).focus?.({preventScroll:true}); d.scrollTop = 0;
 }
 function closeDialog(){ $("#dlg")?.remove(); $("#dscrim")?.remove(); }
 function confirmDialog(title, text, label, fn){
@@ -1211,6 +1241,9 @@ function openSettings(){
       <button class="btn" id="sFolder">Ordner importieren</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
+    <h2 style="font-size:17px;margin-top:22px">Aussehen</h2>
+    <p>Gilt nur für dieses Gerät.</p>
+    <div class="themes">${THEMES.map(([k,l,c]) => `<button class="theme" data-theme="${k}" aria-pressed="${(document.documentElement.dataset.theme||"auto") === k}"><span class="sw" style="background:${k === "auto" ? "linear-gradient(90deg,#F2F4F1 50%,#141917 50%)" : c[0]}"><i style="background:${c[2]}"></i><i style="background:${c[3]}"></i><i style="background:${c[4]}"></i><b style="background:${c[1]}"></b></span>${l}</button>`).join("")}</div>
     <h2 style="font-size:17px;margin-top:22px">Automatisch einsortieren</h2>
     <p>Kommt eines dieser Wörter vor, landet die Notiz im Bereich. Zusätzlich lernt Merkn aus deinen Tags. Mit Komma trennen.</p>
     ${AREAS.map(a => `<label class="f" for="kw-${a}"><span class="dot" data-a="${a}" style="display:inline-block;margin-right:6px"></span>${AREA_NAME[a]}</label><textarea class="inp" id="kw-${a}" style="min-height:70px">${esc((kw[a]||[]).join(", "))}</textarea>`).join("")}
@@ -1223,6 +1256,7 @@ function openSettings(){
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
       <button class="btn primary" id="sDone">Fertig</button>
     </div>`, d => {
+    d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
     const ss = d.querySelector("#sSync"); if (ss) ss.onclick = () => { sync(); closeDialog(); };
@@ -1261,6 +1295,7 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
     if (queue) { S.pendingImg = queue.pendingImg || []; S.deleteImg = queue.deleteImg || []; }
     S.cfg = cfg || null; S.welcome = !cfg && !welcomed;
   } catch (e) { console.warn("Speicher nicht verfügbar", e); }
+  applyTheme(document.documentElement.dataset.theme || "auto");
   S.ready = true; setStatus(S.cfg ? "pending" : "local"); render();
   if (S.cfg) sync();
   checkShareInbox();
