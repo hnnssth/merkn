@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Merkn</title>
+<meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,650&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F4F1; --sheet:#F7F8F6; --ink:#1B2420; --muted:#67716C; --faint:#9AA39E; --line:#DCE0DB;
+  --privat:#4F8A5B; --beruflich:#3556A8; --freelance:#C47D16;
+  --area:var(--ink); --danger:#B3402F;
+  --display:"Bricolage Grotesque", system-ui, sans-serif;
+  --text:"Instrument Sans", system-ui, sans-serif;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#141917; --sheet:#1A201D; --ink:#E4E9E6; --muted:#97A19C; --faint:#69736E; --line:#2A322E;
+    --privat:#7BB487; --beruflich:#86A2E8; --freelance:#E3A84A; --danger:#E07A66; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:color-mix(in srgb, var(--area) 4%, var(--bg));color:var(--ink);font:400 16px/1.5 var(--text);transition:background-color .35s ease;min-height:100vh}
+body[data-area="alle"]{--area:var(--ink)}
+body[data-area="privat"]{--area:var(--privat)}
+body[data-area="beruflich"]{--area:var(--beruflich)}
+body[data-area="freelance"]{--area:var(--freelance)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:2px solid var(--area);outline-offset:2px;border-radius:4px}
+.wrap{max-width:680px;margin:0 auto;padding:calc(14px + var(--safe-t)) 20px calc(110px + var(--safe-b))}
+.hidden{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* Kopf */
+.top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.mark{font:650 26px/1 var(--display);letter-spacing:-.02em;margin:0;flex:1}
+.mark span{color:var(--area);transition:color .35s}
+.iconbtn{width:40px;height:40px;display:grid;place-items:center;border-radius:20px;color:var(--muted)}
+.iconbtn:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.iconbtn svg{width:21px;height:21px}
+.status{width:9px;height:9px;border-radius:50%;background:var(--faint)}
+.status[data-s="ok"]{background:var(--privat)}
+.status[data-s="pending"],.status[data-s="sync"]{background:var(--freelance)}
+.status[data-s="sync"]{animation:pulse 1s ease-in-out infinite}
+.status[data-s="err"]{background:var(--danger)}
+@keyframes pulse{50%{opacity:.35}}
+
+.search{display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--ink) 5%,transparent);border-radius:12px;padding:0 12px;height:46px}
+.search svg{width:18px;height:18px;color:var(--faint);flex:none}
+.search input{flex:1;border:0;background:none;outline:none;height:100%;font-size:16px;min-width:0}
+.search input::placeholder{color:var(--faint)}
+.search kbd{font:500 12px var(--text);color:var(--faint);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+@media (hover:none){.search kbd{display:none}}
+
+/* Bereiche: das eine laute Element */
+.areas{display:flex;gap:22px;margin:22px 0 4px;overflow-x:auto;scrollbar-width:none}
+.areas::-webkit-scrollbar{display:none}
+.area{font:500 21px/1.1 var(--display);letter-spacing:-.015em;color:var(--faint);padding:2px 0 10px;position:relative;white-space:nowrap;transition:color .2s}
+.area sup{font:500 11px var(--text);margin-left:3px;letter-spacing:0;vertical-align:super}
+.area::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:var(--c,var(--ink));transform:scaleX(0);transform-origin:left;transition:transform .25s ease}
+.area[aria-pressed="true"]{color:var(--ink);font-weight:650}
+.area[aria-pressed="true"]::after{transform:scaleX(1)}
+.area:hover{color:var(--ink)}
+.area[data-a="privat"]{--c:var(--privat)}.area[data-a="beruflich"]{--c:var(--beruflich)}.area[data-a="freelance"]{--c:var(--freelance)}
+
+.tags{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:10px 0 6px;margin:0 -20px;padding-left:20px;padding-right:20px}
+.tags::-webkit-scrollbar{display:none}
+.tag{flex:none;font:500 14px var(--text);color:var(--muted);padding:5px 11px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.tag[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Liste */
+.group{font:500 13px var(--text);color:var(--faint);margin:18px 0 0}
+.list{list-style:none;margin:0;padding:0}
+.note{position:relative;display:grid;grid-template-columns:1fr auto;gap:12px;padding:15px 0 15px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.note::before{content:"";position:absolute;left:0;top:17px;bottom:17px;width:3px;border-radius:2px;background:var(--c)}
+.note[data-a="privat"]{--c:var(--privat)}.note[data-a="beruflich"]{--c:var(--beruflich)}.note[data-a="freelance"]{--c:var(--freelance)}
+.note:hover .nt{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.nt{font:650 17px/1.3 var(--display);letter-spacing:-.01em;margin:0 0 2px;overflow-wrap:anywhere}
+.nt.untitled{color:var(--muted);font-weight:500}
+.nb{color:var(--muted);font-size:15px;line-height:1.45;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nm{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:13px;color:var(--faint)}
+.nm .prog{color:var(--muted);font-weight:600}
+.nm .prog.done{color:var(--privat)}
+.thumb{width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--line)}
+.empty{color:var(--muted);padding:48px 0;max-width:34ch}
+.empty strong{display:block;font:650 20px/1.3 var(--display);color:var(--ink);margin-bottom:6px}
+.archivelink{display:block;margin:26px 0 0;color:var(--muted);font-size:14px;text-decoration:underline;text-underline-offset:3px}
+
+.fab{position:fixed;right:max(20px,calc(50vw - 320px));bottom:calc(22px + var(--safe-b));width:58px;height:58px;border-radius:29px;background:var(--ink);color:var(--bg);display:grid;place-items:center;box-shadow:0 6px 20px color-mix(in srgb,var(--ink) 25%,transparent);z-index:5}
+.fab svg{width:26px;height:26px}
+
+/* Editor */
+.sheet{position:fixed;inset:0;background:var(--sheet);z-index:20;overflow-y:auto;overscroll-behavior:contain;animation:up .22s ease}
+@keyframes up{from{transform:translateY(16px);opacity:0}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.ed{max-width:680px;margin:0 auto;padding:calc(10px + var(--safe-t)) 20px calc(120px + var(--safe-b))}
+.edtop{display:flex;align-items:center;gap:4px;position:sticky;top:0;background:var(--sheet);padding:4px 0 8px;z-index:2;margin:0 -6px}
+.edtop .grow{flex:1}
+.areabtn{display:flex;align-items:center;gap:7px;font:500 14px var(--text);padding:7px 12px;border-radius:999px;border:1px solid var(--line)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+[data-a="privat"]>.dot,.dot[data-a="privat"]{--c:var(--privat)}
+[data-a="beruflich"]>.dot,.dot[data-a="beruflich"]{--c:var(--beruflich)}
+[data-a="freelance"]>.dot,.dot[data-a="freelance"]{--c:var(--freelance)}
+.areabtn small{color:var(--faint);font-size:12px}
+.iconbtn[aria-pressed="true"]{color:var(--ink)}
+.edtitle{width:100%;border:0;background:none;outline:none;font:650 27px/1.2 var(--display);letter-spacing:-.02em;padding:12px 0 6px}
+.edtitle::placeholder,.edbody::placeholder{color:var(--faint)}
+.edbody{width:100%;border:0;background:none;outline:none;resize:none;font-size:17px;line-height:1.6;min-height:120px;padding:4px 0;overflow:hidden}
+.items{list-style:none;margin:8px 0;padding:0}
+.item{display:flex;align-items:flex-start;gap:10px;padding:5px 0}
+.item input[type=checkbox]{appearance:none;width:21px;height:21px;border:1.5px solid var(--muted);border-radius:6px;margin:3px 0 0;flex:none;display:grid;place-items:center;cursor:pointer}
+.item input[type=checkbox]:checked{background:var(--area);border-color:var(--area)}
+.item input[type=checkbox]:checked::after{content:"";width:6px;height:11px;border:solid var(--sheet);border-width:0 2px 2px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.item textarea{flex:1;border:0;background:none;outline:none;resize:none;font-size:17px;line-height:1.5;padding:0;overflow:hidden;min-height:26px}
+.item.done textarea{color:var(--faint);text-decoration:line-through}
+.item .x{color:var(--faint);width:28px;height:28px;display:grid;place-items:center;opacity:0}
+.item:hover .x,.item:focus-within .x{opacity:1}
+.additem{display:block;color:var(--muted);font-size:16px;padding:6px 0 6px 31px}
+.donetoggle{display:block;font-size:14px;color:var(--faint);margin:10px 0 2px}
+.imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:14px 0}
+.imgs button{aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--line)}
+.imgs img{width:100%;height:100%;object-fit:cover;display:block}
+.edtags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:18px 0 6px}
+.chip{display:inline-flex;align-items:center;gap:2px;font:500 14px var(--text);color:var(--muted);padding:4px 6px 4px 11px;border-radius:999px;background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.chip button{width:20px;height:20px;border-radius:10px;display:grid;place-items:center;color:var(--faint)}
+.taginput::-webkit-calendar-picker-indicator{display:none!important}
+.taginput{border:0;background:none;outline:none;font-size:15px;min-width:130px;flex:1;padding:4px 2px}
+.meta{color:var(--faint);font-size:13px;margin-top:22px}
+.toolbar{position:fixed;left:0;right:0;bottom:0;background:var(--sheet);border-top:1px solid var(--line);padding:6px 14px calc(6px + var(--safe-b));display:flex;justify-content:center;gap:4px;z-index:21}
+.toolbar button{display:flex;align-items:center;gap:7px;padding:9px 13px;border-radius:10px;color:var(--muted);font-size:14px}
+.toolbar button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.toolbar svg{width:20px;height:20px}
+.toolbar .rec{color:var(--danger)}
+.toolbar .rec svg{animation:pulse 1.1s infinite}
+@media (max-width:420px){.area{font-size:18px}.areas{gap:16px}.toolbar span{display:none}.toolbar button{padding:10px 16px}}
+
+/* Menüs & Dialoge */
+.pop{position:fixed;z-index:40;background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:6px;min-width:210px;box-shadow:0 12px 32px color-mix(in srgb,#000 18%,transparent)}
+.pop button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border-radius:9px;font-size:15px}
+.pop button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.pop .danger{color:var(--danger)}
+.pop hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.scrim{position:fixed;inset:0;z-index:30;background:color-mix(in srgb,#000 30%,transparent)}
+.scrim.clear{background:transparent}
+.dialog{position:fixed;z-index:41;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:auto;background:var(--sheet);border-radius:18px;padding:22px}
+.dialog h2{font:650 21px/1.25 var(--display);margin:0 0 8px;letter-spacing:-.01em}
+.dialog p{margin:0 0 14px;color:var(--muted);font-size:15px}
+.dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.btn{padding:10px 16px;border-radius:10px;font-weight:600;font-size:15px;border:1px solid var(--line)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+label.f{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
+label.f small{font-weight:400;color:var(--muted)}
+.inp{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;font-size:16px;outline:none}
+.inp:focus{border-color:var(--ink)}
+textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
+.hint{font-size:13px;color:var(--muted);margin-top:6px}
+.hint a,.dialog a{color:inherit}
+.msg{font-size:14px;margin-top:10px}
+.msg.err{color:var(--danger)}.msg.ok{color:var(--privat)}
+.viewer{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column}
+.viewer img{flex:1;min-height:0;object-fit:contain;width:100%}
+.viewer .vbar{display:flex;justify-content:space-between;padding:calc(10px + var(--safe-t)) 14px 10px}
+.viewer .vbar button{color:#fff;padding:8px 12px}
+.toast{position:fixed;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
+.toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
+
+/* Einrichtung */
+.welcome{max-width:520px;padding-top:6vh}
+.welcome h1{font:650 46px/1 var(--display);letter-spacing:-.03em;margin:0 0 14px}
+.welcome .lead{font-size:18px;color:var(--muted);margin:0 0 26px;max-width:36ch}
+.welcome ol{padding-left:20px;color:var(--muted);font-size:15px}
+.welcome ol li{margin:6px 0}
+.welcome .row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+</style>
+</head>
+<body data-area="alle">
+<div id="app"></div>
+<input type="file" id="file" accept="image/*" multiple class="hidden">
+<datalist id="taglist"></datalist>
+
+<script>
+"use strict";
+/* ---------- Grundlagen ---------- */
+const AREAS = ["privat","beruflich","freelance"];
+const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
+const DEFAULT_KW = {
+  privat:["einkauf","einkaufen","arzt","termin arzt","geburtstag","urlaub","familie","wohnung","auto","sport","rezept","kochen","garten","geschenk","steuer","versicherung","miete","haushalt","kinder","serie","buch"],
+  beruflich:["meeting","besprechung","büro","kollege","kollegin","chef","chefin","team","jour fixe","abteilung","arbeit","arbeitszeit","präsentation","urlaubsantrag","zeiterfassung","outlook","quartal","deadline","projektplan","mitarbeiter"],
+  freelance:["kamera","film","dreh","motion","after effects","premiere","davinci","resolve","grading","schnitt","footage","objektiv","gimbal","licht","render","animation","storyboard","angebot","rechnung","auftrag","freelance","skript","script","plugin","preset","cinema 4d","c4d","blender","jsx","expression","drohne","mikro","ton","color"]
+};
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s||"").toLowerCase().normalize("NFD").replace(/\p{M}/gu,"");
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const nowISO = () => new Date().toISOString();
+const ICON = {
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 6 3 4H7l3-4-1-6z"/></svg>',
+  pinOn:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5" fill="none"/><path d="M9 3h6l-1 6 3 4H7l3-4-1-6z"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="m8 12 3 3 5-6"/></svg>',
+  image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m21 16-5-5-9 9"/></svg>',
+  hash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>',
+  mic:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  x:'<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  sync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.7L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.7L20 16M20 20v-4h-4"/></svg>'
+};
+
+/* ---------- Lokaler Speicher (IndexedDB) ---------- */
+const idb = (() => {
+  let dbp;
+  const open = () => dbp ||= new Promise((res, rej) => {
+    const r = indexedDB.open("merkn", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  const tx = async (mode, fn) => { const d = await open(); return new Promise((res, rej) => {
+    const t = d.transaction("kv", mode), req = fn(t.objectStore("kv"));
+    t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); }); };
+  return { get:k => tx("readonly", s => s.get(k)), set:(k,v) => tx("readwrite", s => s.put(v,k)), del:k => tx("readwrite", s => s.delete(k)) };
+})();
+
+const S = {
+  notes: new Map(), cfg: null, settings: {keywords: structuredClone(DEFAULT_KW), fallback:"privat", _sha:null, _dirty:false},
+  pendingImg: [], deleteImg: [],
+  view: {area:"alle", tag:null, q:"", archive:false},
+  open: null, status:"local", statusMsg:"", lastSync:0, ready:false, welcome:false
+};
+
+let saveTimer;
+function persist(){ clearTimeout(saveTimer); saveTimer = setTimeout(async () => {
+  await idb.set("notes", [...S.notes.values()]);
+  await idb.set("settings", S.settings);
+  await idb.set("queue", {pendingImg:S.pendingImg, deleteImg:S.deleteImg});
+}, 250); }
+
+/* ---------- Markdown-Format ---------- */
+function toMarkdown(n){
+  const fm = {id:n.id, title:n.title, area:n.area, areaAuto:n.areaAuto, tags:n.tags, pinned:n.pinned, archived:n.archived, created:n.created, updated:n.updated, images:n.images};
+  let s = "---\n" + Object.entries(fm).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("\n") + "\n---\n";
+  if (n.body.trim()) s += n.body.trim() + "\n";
+  if (n.items.length) s += (n.body.trim() ? "\n" : "") + n.items.map(i => `- [${i.d?"x":" "}] ${i.t.replace(/\n/g," ")}`).join("\n") + "\n";
+  return s;
+}
+function fromMarkdown(text, fallbackId){
+  let fm = {}, body = String(text).replace(/\r\n/g,"\n");
+  const m = body.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (m) {
+    body = body.slice(m[0].length);
+    for (const line of m[1].split("\n")) {
+      const i = line.indexOf(":"); if (i < 1) continue;
+      const k = line.slice(0,i).trim(); let v = line.slice(i+1).trim();
+      try { v = JSON.parse(v); } catch {
+        if (/^\[.*\]$/.test(v)) v = v.slice(1,-1).split(",").map(x => x.trim().replace(/^["']|["']$/g,"")).filter(Boolean);
+        else if (v === "true" || v === "false") v = v === "true";
+        else v = v.replace(/^["']|["']$/g,"");
+      }
+      fm[k] = v;
+    }
+  }
+  const items = [], lines = [];
+  for (const l of body.split("\n")) {
+    const t = l.match(/^\s*[-*] \[( |x|X)\]\s?(.*)$/);
+    if (t) { items.push({t:t[2], d:t[1] !== " "}); continue; }
+    const a = l.match(/^\s*Bereich:\s*(\S+)/i);
+    if (a && !fm.area) { const v = norm(a[1]); fm.area = AREAS.find(x => v.startsWith(x.slice(0,4))); fm.areaAuto = false; continue; }
+    const tg = l.match(/^\s*Tags:\s*(.*)$/i);
+    if (tg && !fm.tags) { fm.tags = tg[1].split(/[\s,]+/).map(x => x.replace(/^#/,"")).filter(Boolean); continue; }
+    lines.push(l);
+  }
+  let b = lines.join("\n").trim(), title = fm.title;
+  if (title == null || title === "") {
+    const h = b.match(/^#{1,3}\s+(.+)(\n|$)/);
+    if (h) { title = h[1].trim(); b = b.slice(h[0].length).trim(); } else title = "";
+  }
+  const now = nowISO();
+  const n = { id:String(fm.id || fallbackId || uid()), title:String(title), body:b, items,
+    tags:Array.isArray(fm.tags) ? fm.tags.map(t => norm(String(t)).replace(/\s+/g,"-")) : [],
+    area:AREAS.includes(fm.area) ? fm.area : null, areaAuto:fm.areaAuto !== false,
+    pinned:!!fm.pinned, archived:!!fm.archived, created:fm.created || now, updated:fm.updated || now,
+    images:Array.isArray(fm.images) ? fm.images.map(String) : [] };
+  pullHashtags(n);
+  if (!n.area) { n.area = classify(n); n.areaAuto = true; }
+  return n;
+}
+function forClaude(n){
+  let s = `# ${n.title || "Ohne Titel"}\nBereich: ${AREA_NAME[n.area]}` + (n.tags.length ? `\nTags: ${n.tags.map(t => "#"+t).join(" ")}` : "") + "\n";
+  if (n.body.trim()) s += "\n" + n.body.trim() + "\n";
+  if (n.items.length) s += "\n" + n.items.map(i => `- [${i.d?"x":" "}] ${i.t}`).join("\n") + "\n";
+  if (n.images.length) s += `\n(${n.images.length} Bild${n.images.length>1?"er":""} in der App)\n`;
+  return s;
+}
+function claudeBundle(notes){
+  const head = notes.length === 1
+    ? "Hier ist eine Notiz aus meiner Notizen-App Merkn. Wenn du mir etwas zurückgibst, nutze bitte dasselbe Format (# Titel, Bereich, Tags, Text, Checkliste mit - [ ])."
+    : `Hier sind ${notes.length} Notizen aus meiner Notizen-App Merkn, getrennt durch ---. Wenn du mir etwas zurückgibst, nutze bitte dasselbe Format (# Titel, Bereich, Tags, Text, Checkliste mit - [ ]).`;
+  return head + "\n\n" + notes.map(forClaude).join("\n---\n\n");
+}
+
+/* ---------- Automatisch einsortieren (ohne KI) ---------- */
+function pullHashtags(n){
+  const re = /(^|[\s(])#([\p{L}\p{N}_-]{2,})/gu; let m;
+  const src = n.title + "\n" + n.body + "\n" + n.items.map(i => i.t).join("\n");
+  while ((m = re.exec(src))) { const t = norm(m[2]); if (!n.tags.includes(t)) n.tags.push(t); }
+}
+function classify(n){
+  const score = {privat:0, beruflich:0, freelance:0};
+  const title = " " + norm(n.title) + " ";
+  const text = " " + norm([n.body, n.items.map(i => i.t).join(" "), n.tags.join(" ")].join(" ")) + " ";
+  for (const a of AREAS) for (const raw of (S.settings.keywords[a] || [])) {
+    const k = norm(raw).trim(); if (!k) continue;
+    const kk = k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    const re = k.length <= 3 ? new RegExp(`[^\\p{L}\\p{N}]${kk}[^\\p{L}\\p{N}]`,"u") : new RegExp(`[^\\p{L}\\p{N}]${kk}`,"u");
+    if (re.test(title)) score[a] += 2;
+    if (re.test(text)) score[a] += 1;
+  }
+  // Aus deinen Tags lernen: wo landet ein Tag sonst?
+  if (n.tags.length) {
+    const counts = {};
+    for (const o of S.notes.values()) { if (o.id === n.id || o._deleted) continue;
+      const w = o.areaAuto ? 1 : 3;
+      for (const t of o.tags) { (counts[t] ||= {privat:0,beruflich:0,freelance:0})[o.area] += w; } }
+    for (const t of n.tags) { const c = counts[t]; if (!c) continue;
+      const tot = c.privat + c.beruflich + c.freelance;
+      for (const a of AREAS) score[a] += 3 * c[a] / tot; }
+  }
+  let best = null, bs = 0;
+  for (const a of AREAS) if (score[a] > bs) { bs = score[a]; best = a; }
+  return best || S.settings.fallback || "privat";
+}
+
+/* ---------- Notizen ändern ---------- */
+function newNote(extra={}){
+  const now = nowISO();
+  const n = {id:uid(), title:"", body:"", items:[], tags:[], area:null, areaAuto:true, pinned:false, archived:false, created:now, updated:now, images:[], _sha:null, _dirty:false, _rev:0, ...extra};
+  if (!n.area) n.area = S.view.area !== "alle" ? S.view.area : (S.settings.fallback || "privat");
+  if (S.view.area !== "alle" && !extra.area) n.areaAuto = false;
+  return n;
+}
+function isEmpty(n){ return !n.title.trim() && !n.body.trim() && !n.items.some(i => i.t.trim()) && !n.images.length; }
+function touch(n, {reclassify=true} = {}){
+  n.updated = nowISO(); n._dirty = true; n._rev = (n._rev||0) + 1;
+  if (reclassify) { pullHashtags(n); if (n.areaAuto) n.area = classify(n); }
+  S.notes.set(n.id, n); persist(); setStatus(S.cfg ? "pending" : "local"); scheduleSync();
+}
+function removeNote(n){
+  for (const p of n.images) S.deleteImg.push(p);
+  if (n._sha) { n._deleted = true; n._dirty = true; } else S.notes.delete(n.id);
+  persist(); scheduleSync();
+}
+
+/* ---------- GitHub-Synchronisation ---------- */
+const b64ToBytes = b64 => Uint8Array.from(atob(b64.replace(/\s/g,"")), c => c.charCodeAt(0));
+function bytesToB64(bytes){ let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i+0x8000)); return btoa(s); }
+const textToB64 = t => bytesToB64(new TextEncoder().encode(t));
+const b64ToText = b => new TextDecoder().decode(b64ToBytes(b));
+
+async function gh(path, opts={}, cfg=S.cfg){
+  const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}${path}`, {
+    ...opts, cache:"no-store",
+    headers:{Authorization:`Bearer ${cfg.token}`, Accept:"application/vnd.github+json", ...(opts.body ? {"Content-Type":"application/json"} : {}), ...(opts.headers||{})}
+  });
+  return r;
+}
+async function ghErr(r){ let m = ""; try { m = (await r.json()).message || ""; } catch {}
+  if (r.status === 401) return "Der Zugangsschlüssel ist ungültig oder abgelaufen.";
+  if (r.status === 403) return m.includes("rate limit") ? "GitHub-Limit erreicht. Später erneut versuchen." : "Keine Berechtigung. Prüfe, ob der Schlüssel Schreibrechte auf das Repo hat.";
+  if (r.status === 404) return "Repo nicht gefunden. Prüfe Benutzername und Repo-Name.";
+  return `GitHub-Fehler ${r.status}${m ? ": " + m : ""}`; }
+
+async function fetchTree(){
+  const r = await gh(`/git/trees/${encodeURIComponent(S.cfg.branch)}?recursive=1`);
+  if (r.status === 409 || r.status === 404) { // leeres Repo oder Branch noch nicht da
+    const rr = await gh(""); if (!rr.ok) throw new Error(await ghErr(rr));
+    return new Map();
+  }
+  if (!r.ok) throw new Error(await ghErr(r));
+  const j = await r.json(); const m = new Map();
+  for (const e of j.tree) if (e.type === "blob") m.set(e.path, e.sha);
+  return m;
+}
+async function fetchBlobText(sha){
+  const r = await gh(`/git/blobs/${sha}`); if (!r.ok) throw new Error(await ghErr(r));
+  const j = await r.json(); return b64ToText(j.content);
+}
+async function putFile(path, b64, sha, message){
+  const body = {message, content:b64, branch:S.cfg.branch}; if (sha) body.sha = sha;
+  return gh(`/contents/${path.split("/").map(encodeURIComponent).join("/")}`, {method:"PUT", body:JSON.stringify(body)});
+}
+async function deleteFile(path, sha, message){
+  return gh(`/contents/${path.split("/").map(encodeURIComponent).join("/")}`, {method:"DELETE", body:JSON.stringify({message, sha, branch:S.cfg.branch})});
+}
+
+let syncing = false, again = false, syncTimer;
+function scheduleSync(ms=2500){ if (!S.cfg) return; clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms); }
+async function sync(){
+  if (!S.cfg) { setStatus("local"); return; }
+  if (!navigator.onLine) { setStatus("pending", "Offline. Wird synchronisiert, sobald du wieder online bist."); return; }
+  if (syncing) { again = true; return; }
+  syncing = true; setStatus("sync");
+  try {
+    const remote = await fetchTree();
+    await pushImages(remote);
+    await pushNotes(remote);
+    await pullNotes(remote);
+    await syncSettings(remote);
+    S.lastSync = Date.now(); persist();
+    const pending = [...S.notes.values()].some(n => n._dirty) || S.pendingImg.length;
+    setStatus(pending ? "pending" : "ok");
+  } catch (e) { console.error(e); setStatus("err", e.message || "Synchronisation fehlgeschlagen."); }
+  finally { syncing = false; render(); if (again) { again = false; scheduleSync(300); } }
+}
+async function pushImages(remote){
+  for (const p of [...S.pendingImg]) {
+    if (remote.has(p)) { S.pendingImg = S.pendingImg.filter(x => x !== p); continue; }
+    const blob = await idb.get("img:" + p);
+    if (!blob) { S.pendingImg = S.pendingImg.filter(x => x !== p); continue; }
+    const b64 = bytesToB64(new Uint8Array(await blob.arrayBuffer()));
+    const r = await putFile(p, b64, null, `Bild ${p}`);
+    if (!r.ok) throw new Error(await ghErr(r));
+    const j = await r.json(); remote.set(p, j.content.sha);
+    S.pendingImg = S.pendingImg.filter(x => x !== p); persist();
+  }
+  for (const p of [...S.deleteImg]) {
+    const sha = remote.get(p);
+    if (sha) { const r = await deleteFile(p, sha, `Bild entfernt ${p}`); if (!r.ok && r.status !== 404) throw new Error(await ghErr(r)); remote.delete(p); }
+    S.deleteImg = S.deleteImg.filter(x => x !== p); S.pendingImg = S.pendingImg.filter(x => x !== p);
+    idb.del("img:" + p); persist();
+  }
+}
+async function pushNotes(remote){
+  for (const n of [...S.notes.values()]) {
+    if (!n._dirty) continue;
+    const path = `notes/${n.id}.md`, rsha = remote.get(path);
+    if (n._deleted) {
+      if (rsha) { const r = await deleteFile(path, rsha, `Gelöscht: ${n.title || n.id}`); if (!r.ok && r.status !== 404) throw new Error(await ghErr(r)); remote.delete(path); }
+      S.notes.delete(n.id); persist(); continue;
+    }
+    if (isEmpty(n)) continue;
+    // Auf einem anderen Gerät geändert, seit wir zuletzt abgeglichen haben?
+    if (rsha && rsha !== n._sha) {
+      const other = fromMarkdown(await fetchBlobText(rsha), n.id); other._sha = rsha; other._dirty = false;
+      if (other.updated > n.updated) { // die andere Version ist neuer: sie gewinnt, unsere wird Kopie
+        const copy = {...n, id:uid(), title:(n.title || "Ohne Titel") + " (Konflikt)", _sha:null, _dirty:true, _rev:1};
+        S.notes.set(copy.id, copy); S.notes.set(other.id, other); persist(); continue;
+      }
+    }
+    const rev = n._rev;
+    const r = await putFile(path, textToB64(toMarkdown(n)), rsha, `${n._sha ? "Geändert" : "Neu"}: ${n.title || "Ohne Titel"}`);
+    if (!r.ok) throw new Error(await ghErr(r));
+    const j = await r.json();
+    n._sha = j.content.sha; remote.set(path, n._sha);
+    if (n._rev === rev) n._dirty = false;
+    persist();
+  }
+}
+async function pullNotes(remote){
+  const seen = new Set();
+  for (const [path, sha] of remote) {
+    if (!path.startsWith("notes/") || !path.endsWith(".md")) continue;
+    const id = path.slice(6, -3); seen.add(id);
+    const local = S.notes.get(id);
+    if (local && (local._sha === sha || local._dirty)) continue;
+    const n = fromMarkdown(await fetchBlobText(sha), id);
+    n.id = id; n._sha = sha; n._dirty = false; n._rev = 0;
+    if (S.open && S.open.id === id) { Object.assign(S.open, n); renderEditor(true); }
+    S.notes.set(id, S.open && S.open.id === id ? S.open : n);
+  }
+  for (const n of [...S.notes.values()]) if (n._sha && !n._dirty && !seen.has(n.id)) S.notes.delete(n.id);
+  persist();
+}
+async function syncSettings(remote){
+  const path = "merkn-config.json", rsha = remote.get(path);
+  const st = S.settings;
+  if (st._dirty) {
+    const r = await putFile(path, textToB64(JSON.stringify({keywords:st.keywords, fallback:st.fallback}, null, 2)), rsha, "Einstellungen");
+    if (!r.ok) throw new Error(await ghErr(r));
+    st._sha = (await r.json()).content.sha; st._dirty = false;
+  } else if (rsha && rsha !== st._sha) {
+    try { const c = JSON.parse(await fetchBlobText(rsha)); if (c.keywords) st.keywords = c.keywords; if (c.fallback) st.fallback = c.fallback; st._sha = rsha; } catch {}
+  }
+}
+
+/* ---------- Bilder ---------- */
+const urlCache = new Map();
+async function imageURL(path){
+  if (urlCache.has(path)) return urlCache.get(path);
+  let blob = await idb.get("img:" + path);
+  if (!blob && S.cfg) {
+    try { const r = await gh(`/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(S.cfg.branch)}`, {headers:{Accept:"application/vnd.github.raw"}});
+      if (r.ok) { blob = await r.blob(); idb.set("img:" + path, blob); } } catch {}
+  }
+  if (!blob) return null;
+  const u = URL.createObjectURL(blob); urlCache.set(path, u); return u;
+}
+function fillImages(root=document){
+  root.querySelectorAll("img[data-path]").forEach(async img => {
+    const u = await imageURL(img.dataset.path); if (u) img.src = u; else img.alt = "Bild nicht verfügbar";
+  });
+}
+async function compress(file){
+  const bmp = await createImageBitmap(file).catch(() => null);
+  if (!bmp) return file;
+  const max = 1600, s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width*s); c.height = Math.round(bmp.height*s);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(res => c.toBlob(b => res(b || file), "image/jpeg", 0.82));
+}
+async function addImages(files){
+  const n = S.open; if (!n) return;
+  for (const f of files) {
+    if (!f.type.startsWith("image/")) continue;
+    const blob = await compress(f);
+    const path = `images/${n.id}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    await idb.set("img:" + path, blob);
+    n.images.push(path); S.pendingImg.push(path);
+  }
+  touch(n, {reclassify:false}); renderEditor(true);
+}
+
+/* ---------- Status ---------- */
+function setStatus(s, msg=""){ S.status = s; S.statusMsg = msg; const d = $("#status"); if (d) { d.dataset.s = s; d.parentElement.title = statusText(); } }
+function statusText(){
+  if (S.status === "local") return "Nur auf diesem Gerät gespeichert";
+  if (S.status === "sync") return "Wird synchronisiert …";
+  if (S.status === "pending") return S.statusMsg || "Änderungen warten auf Synchronisation";
+  if (S.status === "err") return S.statusMsg;
+  return "Synchronisiert" + (S.lastSync ? " um " + new Date(S.lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "");
+}
+
+/* ---------- Ansicht: Liste ---------- */
+function visibleNotes(){
+  const v = S.view, toks = norm(v.q).split(/\s+/).filter(Boolean);
+  return [...S.notes.values()].filter(n => {
+    if (n._deleted || isEmpty(n)) return false;
+    if (!!n.archived !== v.archive) return false;
+    if (v.area !== "alle" && n.area !== v.area) return false;
+    if (v.tag && !n.tags.includes(v.tag)) return false;
+    if (!toks.length) return true;
+    const hay = norm([n.title, n.body, n.items.map(i => i.t).join(" "), n.tags.map(t => "#"+t).join(" "), AREA_NAME[n.area]].join(" "));
+    return toks.every(t => t.startsWith("#") ? n.tags.some(x => x.startsWith(t.slice(1))) : hay.includes(t));
+  }).sort((a,b) => (b.pinned - a.pinned) || (b.updated > a.updated ? 1 : -1));
+}
+function counts(){
+  const c = {alle:0, privat:0, beruflich:0, freelance:0};
+  for (const n of S.notes.values()) if (!n._deleted && !n.archived && !isEmpty(n)) { c.alle++; c[n.area]++; }
+  return c;
+}
+function tagsInView(){
+  const m = new Map();
+  for (const n of S.notes.values()) { if (n._deleted || !!n.archived !== S.view.archive) continue;
+    if (S.view.area !== "alle" && n.area !== S.view.area) continue;
+    for (const t of n.tags) m.set(t, (m.get(t)||0) + 1); }
+  return [...m].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).map(x => x[0]);
+}
+function relDate(iso){
+  const d = new Date(iso), now = new Date(), diff = (now - d) / 1000;
+  if (diff < 60) return "gerade eben";
+  if (diff < 3600) return `vor ${Math.floor(diff/60)} Min.`;
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+  const y = new Date(now); y.setDate(now.getDate()-1);
+  if (d.toDateString() === y.toDateString()) return "gestern";
+  return d.toLocaleDateString("de-DE", d.getFullYear() === now.getFullYear() ? {day:"numeric",month:"short"} : {day:"numeric",month:"short",year:"numeric"});
+}
+function noteRow(n){
+  const open = n.items.filter(i => !i.d).length, total = n.items.length;
+  const snippet = n.body.trim() || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
+  const title = n.title.trim() || (n.body.trim() ? "" : "");
+  return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen">
+    <div>
+      ${title ? `<p class="nt">${esc(title)}</p>` : ""}
+      ${snippet ? `<p class="nb" ${title ? "" : 'style="color:var(--ink)"'}>${esc(snippet)}</p>` : (!title ? `<p class="nt untitled">Bild</p>` : "")}
+      <div class="nm">
+        ${total ? `<span class="prog ${open ? "" : "done"}">${total-open}/${total} erledigt</span>` : ""}
+        ${n.tags.slice(0,4).map(t => `<span>#${esc(t)}</span>`).join("")}
+        <span>${relDate(n.updated)}</span>
+      </div>
+    </div>
+    ${n.images[0] ? `<img class="thumb" data-path="${esc(n.images[0])}" alt="">` : ""}
+  </li>`;
+}
+function render(){
+  if (!S.ready) return;
+  document.body.dataset.area = S.view.area;
+  const app = $("#app");
+  if (S.welcome) { app.innerHTML = welcomeHTML(); bindWelcome(); return; }
+  const v = S.view, c = counts(), list = visibleNotes(), tags = tagsInView();
+  if (v.tag && !tags.includes(v.tag)) v.tag = null;
+  const pinned = list.filter(n => n.pinned), rest = list.filter(n => !n.pinned);
+  const archCount = [...S.notes.values()].filter(n => n.archived && !n._deleted).length;
+  const focused = document.activeElement && document.activeElement.id === "q";
+  let body;
+  if (!list.length) {
+    body = v.q ? `<div class="empty"><strong>Nichts gefunden</strong>Keine Notiz passt zu „${esc(v.q)}“${v.area !== "alle" ? " in " + AREA_NAME[v.area] : ""}. Mit # suchst du nach Tags.</div>`
+      : v.archive ? `<div class="empty"><strong>Archiv ist leer</strong>Archivierte Notizen landen hier und stören die Liste nicht mehr.</div>`
+      : `<div class="empty"><strong>Noch nichts gemerkt</strong>Tippe auf +, um die erste Notiz anzulegen. #Tags im Text werden automatisch übernommen.</div>`;
+  } else {
+    body = (pinned.length ? `<p class="group">Angeheftet</p><ul class="list">${pinned.map(noteRow).join("")}</ul>${rest.length ? '<p class="group">Weitere</p>' : ""}` : "")
+      + `<ul class="list">${rest.map(noteRow).join("")}</ul>`;
+  }
+  app.innerHTML = `<div class="wrap">
+    <header class="top">
+      <h1 class="mark">${v.archive ? `<button id="leaveArch" class="iconbtn" style="display:inline-grid;vertical-align:middle;margin-left:-10px" aria-label="Zurück zur Liste">${ICON.back}</button>Archiv` : "Merkn<span>.</span>"}</h1>
+      <button class="iconbtn" id="syncbtn" title="${esc(statusText())}" aria-label="Synchronisieren"><span class="status" id="status" data-s="${S.status}"></span></button>
+      <button class="iconbtn" id="share" title="Aktuelle Ansicht an Claude übergeben" aria-label="Aktuelle Ansicht an Claude übergeben"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-4"/></svg></button>
+      <button class="iconbtn" id="settings" aria-label="Einstellungen">${ICON.gear}</button>
+    </header>
+    <label class="search">${ICON.search}<span class="sr">Suchen</span>
+      <input id="q" type="search" placeholder="Suchen, auch #tag" value="${esc(v.q)}" autocomplete="off" enterkeyhint="search">
+      <kbd>⌘K</kbd></label>
+    <nav class="areas" aria-label="Bereiche">
+      ${["alle", ...AREAS].map(a => `<button class="area" data-a="${a}" aria-pressed="${v.area === a}">${AREA_NAME[a]}<sup>${v.archive ? "" : c[a]}</sup></button>`).join("")}
+    </nav>
+    ${tags.length ? `<div class="tags" role="group" aria-label="Tags">${tags.map(t => `<button class="tag" data-t="${esc(t)}" aria-pressed="${v.tag === t}">#${esc(t)}</button>`).join("")}</div>` : ""}
+    ${body}
+    ${!v.archive && archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}
+  </div>
+  ${v.archive ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
+  bindList();
+  if (focused) { const q = $("#q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  fillImages(app);
+  $("#taglist").innerHTML = allTags().map(t => `<option value="${esc(t)}">`).join("");
+}
+function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!n._deleted) n.tags.forEach(t => s.add(t)); return [...s].sort(); }
+function bindList(){
+  $("#q").addEventListener("input", e => { S.view.q = e.target.value; render(); });
+  document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; render(); });
+  document.querySelectorAll(".tag").forEach(b => b.onclick = () => { S.view.tag = S.view.tag === b.dataset.t ? null : b.dataset.t; render(); });
+  document.querySelectorAll(".note").forEach(li => {
+    li.onclick = () => openNote(S.notes.get(li.dataset.id));
+    li.onkeydown = e => { if (e.key === "Enter") openNote(S.notes.get(li.dataset.id)); };
+  });
+  const nb = $("#new"); if (nb) nb.onclick = () => newMenuOrNote(nb);
+  $("#settings").onclick = openSettings;
+  $("#syncbtn").onclick = () => { if (!S.cfg) openSettings(); else if (S.status === "err") toast(S.statusMsg, "Erneut", sync); else sync(); };
+  $("#share").onclick = () => { const l = visibleNotes(); if (!l.length) return toast("Keine Notizen in dieser Ansicht."); copyForClaude(l); };
+  const ta = $("#toArch"); if (ta) ta.onclick = e => { e.preventDefault(); S.view.archive = true; render(); };
+  const la = $("#leaveArch"); if (la) la.onclick = () => { S.view.archive = false; render(); };
+}
+function newMenuOrNote(anchor){
+  let pressTimer = null;
+  openNote(newNote(), true);
+}
+
+/* ---------- Editor ---------- */
+let edSaveTimer;
+function openNote(n, isNew=false){
+  if (!n) return;
+  S.open = n; S.openNew = isNew; S.showDone = false;
+  history.pushState({ed:1}, "");
+  renderEditor();
+  setTimeout(() => { const t = isNew ? $("#edTitle") : null; if (t) t.focus(); }, 50);
+}
+function closeEditor(fromPop=false){
+  const n = S.open; if (!n) return;
+  stopDictation();
+  clearTimeout(edSaveTimer);
+  if (isEmpty(n)) { if (S.notes.has(n.id)) removeNote(n); }
+  else if (n._edited) { n._edited = false; touch(n); }
+  S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove();
+  if (!fromPop && history.state && history.state.ed) history.back();
+  render();
+}
+window.addEventListener("popstate", () => { if (closePop()) { history.pushState({ed:1},""); return; } if (S.open) closeEditor(true); });
+
+function edChanged(){
+  const n = S.open; n._edited = true;
+  clearTimeout(edSaveTimer);
+  edSaveTimer = setTimeout(() => { if (S.open === n && !isEmpty(n)) { n._edited = false; touch(n); updateAreaBtn(); } }, 900);
+}
+function autosize(el){ el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+function renderEditor(keepFocus=false){
+  const n = S.open; if (!n) return;
+  let sel = null;
+  if (keepFocus && document.activeElement) { const a = document.activeElement; sel = {id:a.id, idx:a.dataset.idx, s:a.selectionStart, e:a.selectionEnd}; }
+  let el = $("#editor");
+  if (!el) { el = document.createElement("div"); el.id = "editor"; el.className = "sheet"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Notiz bearbeiten"); document.body.appendChild(el); }
+  const openItems = n.items.map((it,i) => ({...it, i})).filter(x => !x.d), doneItems = n.items.map((it,i) => ({...it, i})).filter(x => x.d);
+  const itemHTML = x => `<li class="item ${x.d ? "done" : ""}"><input type="checkbox" data-idx="${x.i}" ${x.d ? "checked" : ""} aria-label="Erledigt"><textarea rows="1" class="itxt" data-idx="${x.i}" placeholder="Eintrag" enterkeyhint="next">${esc(x.t)}</textarea><button class="x" data-del="${x.i}" aria-label="Eintrag entfernen">${ICON.x}</button></li>`;
+  el.innerHTML = `<div class="ed">
+    <div class="edtop">
+      <button class="iconbtn" id="edBack" aria-label="Fertig">${ICON.back}</button>
+      <div class="grow"></div>
+      <button class="areabtn" id="edArea" data-a="${n.area}"></button>
+      <button class="iconbtn" id="edPin" aria-pressed="${n.pinned}" aria-label="${n.pinned ? "Lösen" : "Anheften"}" title="${n.pinned ? "Lösen" : "Anheften"}">${n.pinned ? ICON.pinOn : ICON.pin}</button>
+      <button class="iconbtn" id="edMore" aria-label="Weitere Aktionen">${ICON.more}</button>
+    </div>
+    <input id="edTitle" class="edtitle" placeholder="Titel" value="${esc(n.title)}" autocomplete="off" enterkeyhint="next">
+    <textarea id="edBody" class="edbody" placeholder="Notiz" rows="${n.items.length ? 1 : 3}" style="${n.items.length ? "min-height:40px" : ""}">${esc(n.body)}</textarea>
+    ${n.items.length ? `<ul class="items">${openItems.map(itemHTML).join("")}</ul>
+      <button class="additem" id="addItem">+ Eintrag</button>
+      ${doneItems.length ? `<button class="donetoggle" id="doneToggle">${S.showDone ? "▾" : "▸"} ${doneItems.length} erledigt</button>${S.showDone ? `<ul class="items">${doneItems.map(itemHTML).join("")}</ul>` : ""}` : ""}` : ""}
+    ${n.images.length ? `<div class="imgs">${n.images.map(p => `<button data-img="${esc(p)}" aria-label="Bild ansehen"><img data-path="${esc(p)}" alt=""></button>`).join("")}</div>` : ""}
+    <div class="edtags">
+      ${n.tags.map(t => `<span class="chip">#${esc(t)}<button data-untag="${esc(t)}" aria-label="Tag ${esc(t)} entfernen">${ICON.x}</button></span>`).join("")}
+      <input id="tagIn" class="taginput" list="taglist" placeholder="${n.tags.length ? "+ Tag" : "Tag hinzufügen"}" autocomplete="off" enterkeyhint="done">
+    </div>
+    <p class="meta">${S.openNew && !n._sha && !n._edited && isEmpty(n) ? "Neue Notiz" : "Bearbeitet " + new Date(n.updated).toLocaleString("de-DE",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</p>
+  </div>`;
+  if (!$(".toolbar")) {
+    const tb = document.createElement("div"); tb.className = "toolbar"; document.body.appendChild(tb);
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  $(".toolbar").innerHTML = `
+    <button id="tbList">${ICON.check}<span>Liste</span></button>
+    <button id="tbImg">${ICON.image}<span>Bild</span></button>
+    <button id="tbTag">${ICON.hash}<span>Tag</span></button>
+    ${SR ? `<button id="tbMic" class="${dict ? "rec" : ""}" aria-pressed="${!!dict}">${ICON.mic}<span>${dict ? "Stopp" : "Diktat"}</span></button>` : ""}`;
+  updateAreaBtn();
+  bindEditor();
+  el.querySelectorAll("textarea").forEach(autosize);
+  fillImages(el);
+  if (sel && sel.id) { const t = document.getElementById(sel.id); if (t) { t.focus(); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
+  else if (sel && sel.idx != null) { const t = el.querySelector(`.itxt[data-idx="${sel.idx}"]`); if (t) { t.focus(); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
+}
+function updateAreaBtn(){
+  const n = S.open, b = $("#edArea"); if (!n || !b) return;
+  b.dataset.a = n.area;
+  b.innerHTML = `<span class="dot"></span>${AREA_NAME[n.area]}${n.areaAuto ? " <small>auto</small>" : ""}`;
+  b.setAttribute("aria-label", `Bereich: ${AREA_NAME[n.area]}${n.areaAuto ? ", automatisch" : ""}. Ändern`);
+}
+function focusItem(i){ const t = document.querySelector(`.itxt[data-idx="${i}"]`); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+function bindEditor(){
+  const n = S.open, el = $("#editor");
+  $("#edBack").onclick = () => closeEditor();
+  const ti = $("#edTitle"), bo = $("#edBody");
+  ti.oninput = () => { n.title = ti.value; edChanged(); };
+  ti.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); bo.focus(); } };
+  bo.oninput = () => { n.body = bo.value; autosize(bo); edChanged(); };
+  el.querySelectorAll(".itxt").forEach(t => {
+    const i = +t.dataset.idx;
+    t.oninput = () => { n.items[i].t = t.value.replace(/\n/g," "); autosize(t); edChanged(); };
+    t.onkeydown = e => {
+      if (e.key === "Enter") { e.preventDefault(); n.items.splice(i+1, 0, {t:"", d:false}); edChanged(); renderEditor(); focusItem(i+1); }
+      if (e.key === "Backspace" && !t.value) { e.preventDefault(); n.items.splice(i,1); edChanged(); renderEditor(); if (n.items.length) focusItem(Math.max(0,i-1)); else bo.focus(); }
+    };
+  });
+  el.querySelectorAll('.item input[type=checkbox]').forEach(c => c.onchange = () => { n.items[+c.dataset.idx].d = c.checked; edChanged(); renderEditor(); });
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { n.items.splice(+b.dataset.del, 1); edChanged(); renderEditor(); });
+  const ai = $("#addItem"); if (ai) ai.onclick = () => { n.items.push({t:"", d:false}); edChanged(); renderEditor(); focusItem(n.items.length-1); };
+  const dt = $("#doneToggle"); if (dt) dt.onclick = () => { S.showDone = !S.showDone; renderEditor(); };
+  el.querySelectorAll("[data-untag]").forEach(b => b.onclick = () => { n.tags = n.tags.filter(t => t !== b.dataset.untag); n._edited = true; renderEditor(); });
+  const tg = $("#tagIn");
+  const addTag = () => { const v = norm(tg.value).replace(/^#/,"").trim().replace(/\s+/g,"-"); if (v && !n.tags.includes(v)) { n.tags.push(v); edChanged(); renderEditor(); $("#tagIn").focus(); } else tg.value = ""; };
+  tg.onkeydown = e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } };
+  tg.onchange = addTag;
+  el.querySelectorAll("[data-img]").forEach(b => b.onclick = () => openViewer(b.dataset.img));
+  $("#edPin").onclick = () => { n.pinned = !n.pinned; n._edited = true; edChanged(); renderEditor(); };
+  $("#edArea").onclick = e => areaMenu(e.currentTarget);
+  $("#edMore").onclick = e => moreMenu(e.currentTarget);
+  $("#tbList").onclick = () => {
+    // Text in Liste umwandeln, wenn noch keine Liste existiert und Text da ist
+    if (!n.items.length && n.body.trim() && n.body.includes("\n")) {
+      n.items = n.body.split("\n").map(s => s.replace(/^\s*([-*•]|\d+[.)])\s*/,"").trim()).filter(Boolean).map(t => ({t, d:false})); n.body = "";
+    } else n.items.push({t:"", d:false});
+    edChanged(); renderEditor(); focusItem(n.items.findIndex(i => !i.t) >= 0 ? n.items.findIndex(i => !i.t) : n.items.length-1);
+  };
+  $("#tbImg").onclick = () => $("#file").click();
+  $("#tbTag").onclick = () => { $("#tagIn").focus(); $("#tagIn").scrollIntoView({block:"center", behavior:"smooth"}); };
+  const mic = $("#tbMic"); if (mic) mic.onclick = toggleDictation;
+}
+$("#file").onchange = e => { const f = [...e.target.files]; e.target.value = ""; addImages(f); };
+
+/* ---------- Diktat ---------- */
+let dict = null;
+function toggleDictation(){ if (dict) return stopDictation(); startDictation(); }
+function startDictation(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return;
+  const n = S.open;
+  let target = document.activeElement;
+  if (!target || !(target.classList.contains("itxt") || target.id === "edBody" || target.id === "edTitle")) target = $("#edBody");
+  const kind = target.id === "edTitle" ? "title" : target.classList.contains("itxt") ? {i:+target.dataset.idx} : "body";
+  const get = () => kind === "title" ? n.title : kind === "body" ? n.body : n.items[kind.i]?.t ?? "";
+  const set = v => { if (kind === "title") n.title = v; else if (kind === "body") n.body = v; else if (n.items[kind.i]) n.items[kind.i].t = v; };
+  let base = get();
+  const rec = new SR(); rec.lang = "de-DE"; rec.continuous = true; rec.interimResults = true;
+  rec.onresult = e => {
+    let fin = "", interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) { const r = e.results[i]; if (r.isFinal) fin += r[0].transcript; else interim += r[0].transcript; }
+    const sep = base && !/\s$/.test(base) ? " " : "";
+    if (fin) { base = base + sep + fin.trim(); set(base); edChanged(); }
+    const shown = interim ? base + (base && !/\s$/.test(base) ? " " : "") + interim : base;
+    const field = kind === "title" ? $("#edTitle") : kind === "body" ? $("#edBody") : document.querySelector(`.itxt[data-idx="${kind.i}"]`);
+    if (field) { field.value = shown; if (field.tagName === "TEXTAREA") autosize(field); }
+  };
+  rec.onerror = e => { if (e.error === "not-allowed") toast("Mikrofon nicht erlaubt. Gib Merkn in den Browser-Einstellungen Zugriff."); else if (e.error !== "aborted" && e.error !== "no-speech") toast("Diktat unterbrochen."); };
+  rec.onend = () => { if (dict === rec) { dict = null; if (S.open) renderEditor(true); } };
+  try { rec.start(); dict = rec; renderEditor(true); target.focus(); } catch { toast("Diktat konnte nicht starten."); }
+}
+function stopDictation(){ if (dict) { const r = dict; dict = null; try { r.stop(); } catch {} if (S.open) renderEditor(true); } }
+
+/* ---------- Menüs, Dialoge, Toast ---------- */
+let popEl = null;
+function closePop(){ if (!popEl) return false; popEl.forEach(e => e.remove()); popEl = null; return true; }
+function popover(anchor, html, onBind){
+  closePop();
+  const scrim = document.createElement("div"); scrim.className = "scrim clear"; scrim.onclick = closePop;
+  const p = document.createElement("div"); p.className = "pop"; p.setAttribute("role","menu"); p.innerHTML = html;
+  document.body.append(scrim, p); popEl = [scrim, p];
+  const r = anchor.getBoundingClientRect(), w = p.offsetWidth;
+  p.style.top = Math.min(r.bottom + 6, innerHeight - p.offsetHeight - 10) + "px";
+  p.style.left = Math.max(10, Math.min(r.right - w, innerWidth - w - 10)) + "px";
+  onBind(p); p.querySelector("button")?.focus();
+  p.onkeydown = e => { if (e.key === "Escape") closePop(); };
+}
+function areaMenu(anchor){
+  const n = S.open;
+  popover(anchor, AREAS.map(a => `<button data-set="${a}" role="menuitem"><span class="dot" data-a="${a}"></span>${AREA_NAME[a]}${!n.areaAuto && n.area === a ? " ✓" : ""}</button>`).join("")
+    + `<hr><button data-set="auto" role="menuitem">Automatisch einsortieren${n.areaAuto ? " ✓" : ""}</button>`, p => {
+    p.querySelectorAll("[data-set]").forEach(b => b.onclick = () => {
+      const v = b.dataset.set;
+      if (v === "auto") { n.areaAuto = true; n.area = classify(n); } else { n.area = v; n.areaAuto = false; }
+      n._edited = true; closePop(); edChanged(); updateAreaBtn();
+    });
+  });
+}
+function moreMenu(anchor){
+  const n = S.open;
+  popover(anchor, `<button data-act="claude" role="menuitem">An Claude übergeben</button>
+    <button data-act="arch" role="menuitem">${n.archived ? "Aus Archiv holen" : "Archivieren"}</button>
+    <hr><button data-act="del" class="danger" role="menuitem">Löschen</button>`, p => {
+    p.querySelector('[data-act="claude"]').onclick = () => { closePop(); copyForClaude([n]); };
+    p.querySelector('[data-act="arch"]').onclick = () => { closePop(); n.archived = !n.archived; touch(n, {reclassify:false}); const was = n.archived; closeEditor(); toast(was ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !was; touch(n, {reclassify:false}); render(); }); };
+    p.querySelector('[data-act="del"]').onclick = () => { closePop(); confirmDialog("Notiz löschen?", "Die Notiz wird auf allen Geräten entfernt.", "Löschen", () => { const k = S.open; S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove(); if (history.state && history.state.ed) history.back(); removeNote(k); render(); toast("Gelöscht."); }); };
+  });
+}
+function dialog(html, onBind){
+  closeDialog();
+  const scrim = document.createElement("div"); scrim.className = "scrim"; scrim.id = "dscrim"; scrim.onclick = closeDialog;
+  const d = document.createElement("div"); d.className = "dialog"; d.id = "dlg"; d.setAttribute("role","dialog"); d.setAttribute("aria-modal","true"); d.innerHTML = html;
+  document.body.append(scrim, d);
+  d.onkeydown = e => { if (e.key === "Escape") closeDialog(); };
+  onBind(d); (d.querySelector("input,textarea,.btn.primary") || d).focus?.();
+}
+function closeDialog(){ $("#dlg")?.remove(); $("#dscrim")?.remove(); }
+function confirmDialog(title, text, label, fn){
+  dialog(`<h2>${esc(title)}</h2><p>${esc(text)}</p><div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn danger" data-ok>${esc(label)}</button></div>`, d => {
+    d.querySelector("[data-x]").onclick = closeDialog;
+    d.querySelector("[data-ok]").onclick = () => { closeDialog(); fn(); };
+    d.querySelector("[data-ok]").focus();
+  });
+}
+let toastTimer;
+function toast(msg, action, fn){
+  $(".toast")?.remove(); clearTimeout(toastTimer);
+  const t = document.createElement("div"); t.className = "toast"; t.setAttribute("role","status");
+  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action)}</button>` : ""}`;
+  document.body.appendChild(t);
+  if (action) t.querySelector("button").onclick = () => { t.remove(); fn(); };
+  toastTimer = setTimeout(() => t.remove(), action ? 6000 : 3000);
+}
+function openViewer(path){
+  const v = document.createElement("div"); v.className = "viewer";
+  v.innerHTML = `<div class="vbar"><button data-close>Schließen</button><button data-rm>Bild entfernen</button></div><img data-path="${esc(path)}" alt="">`;
+  document.body.appendChild(v); fillImages(v);
+  v.querySelector("[data-close]").onclick = () => v.remove();
+  v.querySelector("[data-rm]").onclick = () => { const n = S.open; n.images = n.images.filter(p => p !== path); S.deleteImg.push(path); v.remove(); touch(n, {reclassify:false}); renderEditor(); };
+}
+
+/* ---------- Übergabe an Claude ---------- */
+async function copyForClaude(notes){
+  const text = claudeBundle(notes);
+  try { await navigator.clipboard.writeText(text); toast(notes.length === 1 ? "Kopiert. In Claude einfügen." : `${notes.length} Notizen kopiert. In Claude einfügen.`); }
+  catch {
+    dialog(`<h2>An Claude übergeben</h2><p>Text markieren, kopieren und in Claude einfügen.</p><textarea class="inp" style="min-height:240px" readonly>${esc(text)}</textarea><div class="row"><button class="btn primary" data-x>Fertig</button></div>`, d => {
+      const ta = d.querySelector("textarea"); ta.focus(); ta.select(); d.querySelector("[data-x]").onclick = closeDialog; });
+  }
+}
+function importDialog(){
+  dialog(`<h2>Von Claude übernehmen</h2><p>Füge hier ein, was Claude dir gegeben hat. Mehrere Notizen trennst du mit einer Zeile ---.</p>
+    <textarea class="inp" id="imp" style="min-height:220px" placeholder="# Titel&#10;Bereich: Freelance&#10;Tags: #idee&#10;&#10;- [ ] Erster Punkt"></textarea>
+    <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Als Notiz anlegen</button></div>`, d => {
+    d.querySelector("[data-x]").onclick = closeDialog;
+    d.querySelector("[data-ok]").onclick = () => {
+      const raw = d.querySelector("#imp").value.trim(); if (!raw) return;
+      let parts = raw.replace(/^Hier (ist|sind)[^\n]*\n+/i, "").split(/\n\s*---\s*\n(?=\s*(#|---|\S))/).filter(p => p && p.trim() && !/^(#|---|\S)$/.test(p.trim()));
+      if (/^---\n/.test(raw)) parts = [raw];
+      let made = 0;
+      for (const p of parts) { const n = fromMarkdown(p, uid()); n.id = uid(); Object.assign(n, {_sha:null, _dirty:false, _rev:0}); if (isEmpty(n)) continue; n.created = n.updated = nowISO(); touch(n, {reclassify:false}); made++; }
+      closeDialog(); render(); toast(made === 1 ? "Notiz angelegt." : `${made} Notizen angelegt.`);
+    };
+  });
+}
+
+/* ---------- Einstellungen & Einrichtung ---------- */
+async function testConnection(cfg){
+  const r = await gh("", {}, cfg);
+  if (!r.ok) throw new Error(await ghErr(r));
+  const j = await r.json();
+  if (!j.private) return "warn";
+  if (j.permissions && !j.permissions.push) throw new Error("Der Schlüssel hat keine Schreibrechte auf dieses Repo.");
+  return "ok";
+}
+function connectForm(prefix){
+  const c = S.cfg || {owner:"hnnssth", repo:"merkn-daten", branch:"main", token:""};
+  return `<label class="f" for="${prefix}Owner">GitHub-Benutzername</label><input class="inp" id="${prefix}Owner" value="${esc(c.owner)}" autocapitalize="off" autocomplete="off">
+    <label class="f" for="${prefix}Repo">Privates Repo für die Notizen</label><input class="inp" id="${prefix}Repo" value="${esc(c.repo)}" autocapitalize="off" autocomplete="off">
+    <label class="f" for="${prefix}Token">Zugangsschlüssel <small>(Fine-grained token)</small></label><input class="inp" id="${prefix}Token" type="password" value="${esc(c.token)}" placeholder="github_pat_…" autocomplete="off">
+    <p class="hint">Erstellen auf <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens</a>: nur das Repo <b>merkn-daten</b> auswählen, Berechtigung <b>Contents: Read and write</b>. Der Schlüssel bleibt nur auf diesem Gerät.</p>
+    <p class="msg" id="${prefix}Msg"></p>`;
+}
+async function saveConnection(prefix){
+  const cfg = {owner:$(`#${prefix}Owner`).value.trim(), repo:$(`#${prefix}Repo`).value.trim(), branch:"main", token:$(`#${prefix}Token`).value.trim()};
+  const msg = $(`#${prefix}Msg`);
+  if (!cfg.owner || !cfg.repo || !cfg.token) { msg.className = "msg err"; msg.textContent = "Bitte alle drei Felder ausfüllen."; return false; }
+  msg.className = "msg"; msg.textContent = "Verbindung wird geprüft …";
+  try {
+    const rr = await gh("", {}, cfg); if (rr.ok) { const j = await rr.json(); cfg.branch = j.default_branch || "main"; }
+    const res = await testConnection(cfg);
+    S.cfg = cfg; await idb.set("cfg", cfg);
+    for (const n of S.notes.values()) if (!n._sha) n._dirty = true;
+    S.settings._dirty = !S.settings._sha && JSON.stringify(S.settings.keywords) !== JSON.stringify(DEFAULT_KW);
+    persist();
+    msg.className = "msg ok"; msg.textContent = res === "warn" ? "Verbunden. Achtung: Das Repo ist öffentlich, mach es besser privat." : "Verbunden.";
+    sync(); return true;
+  } catch (e) { msg.className = "msg err"; msg.textContent = e.message; return false; }
+}
+function welcomeHTML(){
+  return `<div class="wrap welcome">
+    <h1>Merkn<span style="color:var(--freelance)">.</span></h1>
+    <p class="lead">Notizen für Privat, Beruflich und Freelance. Synchronisiert über dein eigenes GitHub-Repo.</p>
+    ${connectForm("w")}
+    <div class="row"><button class="btn primary" id="wGo">Verbinden</button><button class="btn" id="wLocal">Erst mal ohne Sync</button></div>
+  </div>`;
+}
+function bindWelcome(){
+  $("#wGo").onclick = async () => { if (await saveConnection("w")) { S.welcome = false; await idb.set("welcomed", true); render(); } };
+  $("#wLocal").onclick = async () => { S.welcome = false; await idb.set("welcomed", true); render(); };
+}
+function openSettings(){
+  const kw = S.settings.keywords;
+  dialog(`<h2>Einstellungen</h2>
+    <p>${esc(statusText())}${S.cfg ? ` · <a href="https://github.com/${esc(S.cfg.owner)}/${esc(S.cfg.repo)}" target="_blank" rel="noopener">Repo öffnen</a>` : ""}</p>
+    <div class="row" style="justify-content:flex-start;margin:0 0 6px">
+      <button class="btn" id="sImport">Von Claude übernehmen</button>
+      ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
+    </div>
+    <h2 style="font-size:17px;margin-top:22px">Automatisch einsortieren</h2>
+    <p>Kommt eines dieser Wörter vor, landet die Notiz im Bereich. Zusätzlich lernt Merkn aus deinen Tags. Mit Komma trennen.</p>
+    ${AREAS.map(a => `<label class="f" for="kw-${a}"><span class="dot" data-a="${a}" style="display:inline-block;margin-right:6px"></span>${AREA_NAME[a]}</label><textarea class="inp" id="kw-${a}" style="min-height:70px">${esc((kw[a]||[]).join(", "))}</textarea>`).join("")}
+    <label class="f" for="fb">Wenn nichts passt</label>
+    <select class="inp" id="fb">${AREAS.map(a => `<option value="${a}" ${S.settings.fallback === a ? "selected" : ""}>${AREA_NAME[a]}</option>`).join("")}</select>
+    <h2 style="font-size:17px;margin-top:22px">GitHub</h2>
+    ${connectForm("s")}
+    <div class="row">
+      ${S.cfg ? `<button class="btn" id="sOff">Trennen</button>` : ""}
+      <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
+      <button class="btn primary" id="sDone">Fertig</button>
+    </div>`, d => {
+    d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
+    const ss = d.querySelector("#sSync"); if (ss) ss.onclick = () => { sync(); closeDialog(); };
+    d.querySelector("#sConn").onclick = () => saveConnection("s");
+    const off = d.querySelector("#sOff"); if (off) off.onclick = () => confirmDialog("GitHub trennen?", "Die Notizen bleiben auf diesem Gerät und im Repo. Es wird nur nicht mehr synchronisiert.", "Trennen", async () => { S.cfg = null; await idb.del("cfg"); setStatus("local"); render(); });
+    d.querySelector("#sDone").onclick = () => {
+      const next = {}; for (const a of AREAS) next[a] = d.querySelector(`#kw-${a}`).value.split(",").map(s => s.trim()).filter(Boolean);
+      const fb = d.querySelector("#fb").value;
+      if (JSON.stringify(next) !== JSON.stringify(S.settings.keywords) || fb !== S.settings.fallback) {
+        S.settings.keywords = next; S.settings.fallback = fb; S.settings._dirty = true;
+        for (const n of S.notes.values()) if (n.areaAuto && !n._deleted) { const a = classify(n); if (a !== n.area) { n.area = a; n._dirty = true; n._rev = (n._rev||0)+1; } }
+        persist(); scheduleSync(500);
+      }
+      closeDialog(); render();
+    };
+  });
+}
+
+/* ---------- Tastatur ---------- */
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); if (S.open) closeEditor(); setTimeout(() => $("#q")?.focus(), 0); }
+  else if (e.key === "Escape" && S.open && !popEl && !$("#dlg") && !$(".viewer")) closeEditor();
+  else if (e.key === "n" && !S.open && !$("#dlg") && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !S.welcome) { e.preventDefault(); openNote(newNote(), true); }
+});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") scheduleSync(200); else if (S.open && S.open._edited) { S.open._edited = false; if (!isEmpty(S.open)) touch(S.open); } });
+window.addEventListener("online", () => scheduleSync(200));
+setInterval(() => { if (document.visibilityState === "visible") scheduleSync(0); }, 120000);
+document.addEventListener("paste", e => { if (!S.open) return; const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith("image/")); if (f.length) { e.preventDefault(); addImages(f); } });
+
+/* ---------- Start ---------- */
+(async function init(){
+  try {
+    const [notes, cfg, settings, queue, welcomed] = await Promise.all([idb.get("notes"), idb.get("cfg"), idb.get("settings"), idb.get("queue"), idb.get("welcomed")]);
+    (notes || []).forEach(n => S.notes.set(n.id, n));
+    if (settings) S.settings = {...S.settings, ...settings};
+    if (queue) { S.pendingImg = queue.pendingImg || []; S.deleteImg = queue.deleteImg || []; }
+    S.cfg = cfg || null; S.welcome = !cfg && !welcomed;
+  } catch (e) { console.warn("Speicher nicht verfügbar", e); }
+  S.ready = true; setStatus(S.cfg ? "pending" : "local"); render();
+  if (S.cfg) sync();
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
+</script>
+</body>
+</html>
