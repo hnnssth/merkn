@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Merkn</title>
 <meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141917" media="(prefers-color-scheme: dark)">
@@ -107,7 +107,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .fab svg{width:26px;height:26px}
 
 /* Editor */
-.sheet{position:fixed;inset:0;background:var(--sheet);z-index:20;overflow-y:auto;overscroll-behavior:contain;animation:up .22s ease}
+.sheet{scroll-padding-top:64px;scroll-padding-bottom:84px;position:fixed;inset:0;background:var(--sheet);z-index:20;overflow-y:auto;overscroll-behavior:contain;animation:up .22s ease}
 @keyframes up{from{transform:translateY(16px);opacity:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .ed{max-width:680px;margin:0 auto;padding:calc(10px + var(--safe-t)) 20px calc(120px + var(--safe-b))}
@@ -250,6 +250,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .schips::-webkit-scrollbar{display:none}
 .ssec{padding-top:18px}
 .ssec h3{font:650 17px/1.3 var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.edbody,.item textarea{field-sizing:content}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -272,7 +273,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "0.14";
+const APP_VERSION = "0.15";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1124,12 +1125,29 @@ function edChanged(){
   clearTimeout(edSaveTimer);
   edSaveTimer = setTimeout(() => { if (S.open === n && !isEmpty(n)) { n._edited = false; touch(n); updateAreaBtn(); } }, 900);
 }
-function autosize(el){ el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+const FIELD_SIZING = !!(window.CSS && CSS.supports && CSS.supports("field-sizing", "content"));
+function autosize(el){
+  if (FIELD_SIZING) return; // Browser wächst selbst mit, kein Springen
+  const sc = el.closest(".sheet"), top = sc ? sc.scrollTop : 0;
+  el.style.height = "auto"; el.style.height = el.scrollHeight + "px";
+  if (sc && sc.scrollTop !== top) sc.scrollTop = top;
+}
+// Fokussiertes Feld sichtbar halten: über Tastatur und unterer Leiste
+function ensureVisible(t){
+  const sc = $("#editor"); if (!sc || !t || !sc.contains(t)) return;
+  const r = t.getBoundingClientRect(), vh = window.visualViewport ? window.visualViewport.height : innerHeight;
+  const bottom = vh - ((($(".toolbar")?.offsetHeight) || 0) + 16), topLimit = 64;
+  if (t.tagName === "TEXTAREA" && r.height > bottom - topLimit) return; // lange Felder: Browser folgt dem Cursor
+  if (r.bottom > bottom) sc.scrollTop += r.bottom - bottom;
+  else if (r.top < topLimit) sc.scrollTop -= topLimit - r.top;
+}
+if (window.visualViewport) visualViewport.addEventListener("resize", () => { const a = document.activeElement; if (S.open && a && a.matches("input,textarea")) setTimeout(() => ensureVisible(a), 50); });
 function renderEditor(keepFocus=false){
   const n = S.open; if (!n) return;
   let sel = null;
   if (keepFocus && document.activeElement) { const a = document.activeElement; sel = {id:a.id, idx:a.dataset.idx, s:a.selectionStart, e:a.selectionEnd}; }
   let el = $("#editor");
+  const prevTop = el ? el.scrollTop : null;
   if (!el) { el = document.createElement("div"); el.id = "editor"; el.className = "sheet"; el.setAttribute("role","dialog"); el.setAttribute("aria-label","Notiz bearbeiten"); document.body.appendChild(el); }
   const openItems = n.items.map((it,i) => ({...it, i})).filter(x => !x.d), doneItems = n.items.map((it,i) => ({...it, i})).filter(x => x.d);
   const itemHTML = x => `<li class="item ${x.d ? "done" : ""}"><input type="checkbox" data-idx="${x.i}" ${x.d ? "checked" : ""} aria-label="Erledigt"><textarea rows="1" class="itxt" data-idx="${x.i}" placeholder="Eintrag" enterkeyhint="next">${esc(x.t)}</textarea><button class="x" data-del="${x.i}" aria-label="Eintrag entfernen">${ICON.x}</button></li>`;
@@ -1170,9 +1188,10 @@ function renderEditor(keepFocus=false){
   updateAreaBtn();
   bindEditor();
   el.querySelectorAll("textarea").forEach(autosize);
+  if (prevTop != null) el.scrollTop = prevTop; // Neuaufbau ohne Springen
   fillImages(el); fillAudio(el);
-  if (sel && sel.id) { const t = document.getElementById(sel.id); if (t) { t.focus(); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
-  else if (sel && sel.idx != null) { const t = el.querySelector(`.itxt[data-idx="${sel.idx}"]`); if (t) { t.focus(); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
+  if (sel && sel.id) { const t = document.getElementById(sel.id); if (t) { t.focus({preventScroll:true}); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
+  else if (sel && sel.idx != null) { const t = el.querySelector(`.itxt[data-idx="${sel.idx}"]`); if (t) { t.focus({preventScroll:true}); try { t.setSelectionRange(sel.s, sel.e); } catch {} } }
 }
 function updateAreaBtn(){
   const n = S.open, b = $("#edArea"); if (!n || !b) return;
@@ -1180,7 +1199,7 @@ function updateAreaBtn(){
   b.innerHTML = `<span class="dot"></span>${AREA_NAME[n.area]}${n.areaAuto ? " <small>auto</small>" : ""}`;
   b.setAttribute("aria-label", `Bereich: ${AREA_NAME[n.area]}${n.areaAuto ? ", automatisch" : ""}. Ändern`);
 }
-function focusItem(i){ const t = document.querySelector(`.itxt[data-idx="${i}"]`); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+function focusItem(i){ const t = document.querySelector(`.itxt[data-idx="${i}"]`); if (t) { t.focus({preventScroll:true}); t.setSelectionRange(t.value.length, t.value.length); ensureVisible(t); } }
 function bindEditor(){
   const n = S.open, el = $("#editor");
   $("#edBack").onclick = () => closeEditor();
@@ -1204,7 +1223,7 @@ function bindEditor(){
   el.querySelectorAll("[data-untag]").forEach(b => b.onclick = () => { n.tags = n.tags.filter(t => t !== b.dataset.untag); n._edited = true; renderEditor(); });
   el.querySelectorAll("[data-addtag]").forEach(b => b.onclick = () => { n.tags.push(b.dataset.addtag); edChanged(); renderEditor(); });
   const tg = $("#tagIn");
-  const addTag = () => { const v = norm(tg.value).replace(/^#/,"").trim().replace(/\s+/g,"-"); if (v && !n.tags.includes(v)) { n.tags.push(v); edChanged(); renderEditor(); $("#tagIn").focus(); } else tg.value = ""; };
+  const addTag = () => { const v = norm(tg.value).replace(/^#/,"").trim().replace(/\s+/g,"-"); if (v && !n.tags.includes(v)) { n.tags.push(v); edChanged(); renderEditor(); const ti2 = $("#tagIn"); ti2.focus({preventScroll:true}); ensureVisible(ti2); } else tg.value = ""; };
   tg.onkeydown = e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } };
   tg.onchange = addTag;
   el.querySelectorAll("[data-img]").forEach(b => b.onclick = () => openViewer(b.dataset.img));
@@ -1221,7 +1240,7 @@ function bindEditor(){
   $("#tbImg").onclick = () => $("#file").click();
   $("#tbAud").onclick = e => audioMenu(e.currentTarget);
   el.querySelectorAll("[data-unaud]").forEach(b => b.onclick = () => confirmDialog("Aufnahme entfernen?", "Die Aufnahme wird auf allen Geräten gelöscht.", "Entfernen", () => { const p = b.dataset.unaud; n.audio = n.audio.filter(x => x !== p); S.deleteImg.push(p); touch(n, {reclassify:false}); renderEditor(); }));
-  $("#tbTag").onclick = () => { $("#tagIn").focus(); $("#tagIn").scrollIntoView({block:"center", behavior:"smooth"}); };
+  $("#tbTag").onclick = () => { const t = $("#tagIn"); t.focus({preventScroll:true}); ensureVisible(t); setTimeout(() => ensureVisible(t), 350); };
   const mic = $("#tbMic"); if (mic) mic.onclick = toggleDictation;
 }
 $("#file").onchange = e => { const f = [...e.target.files]; e.target.value = ""; addImages(f); };
