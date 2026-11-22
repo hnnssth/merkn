@@ -149,7 +149,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 .toolbar svg{width:20px;height:20px}
 .toolbar .rec{color:var(--danger)}
 .toolbar .rec svg{animation:pulse 1.1s infinite}
-@media (max-width:420px){.area{font-size:17px}.areas{gap:13px}.toolbar span{display:none}.toolbar button{padding:10px 14px}}
+@media (max-width:420px){.area{font-size:16px}.area sup{display:none}.areas{gap:12px}.toolbar span{display:none}.toolbar button{padding:10px 14px}}
 
 /* Menüs & Dialoge */
 .pop{position:fixed;z-index:40;background:var(--sheet);border:1px solid var(--line);border-radius:14px;padding:6px;min-width:210px;box-shadow:0 12px 32px color-mix(in srgb,#000 18%,transparent)}
@@ -237,6 +237,10 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .tcard div{display:grid;grid-template-columns:86px 1fr;gap:8px;overflow-wrap:anywhere}
 .tcard span{color:var(--faint)}
 .tcard a{color:var(--ink)}
+.ti{display:inline-flex;align-items:center;gap:3px;color:var(--faint)}
+.ti svg{flex:none}
+.ti b{font-weight:600;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ti.done b{color:var(--privat)}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -259,7 +263,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "0.12";
+const APP_VERSION = "0.13";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -852,21 +856,37 @@ function relDate(iso){
   return d.toLocaleDateString("de-DE", d.getFullYear() === now.getFullYear() ? {day:"numeric",month:"short"} : {day:"numeric",month:"short",year:"numeric"});
 }
 const stamp = iso => { const d = new Date(iso); return d.toLocaleDateString("de-DE",{day:"2-digit",month:"2-digit",year:"numeric"}) + " · " + d.toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}); };
+const TI = {
+  tree:'<rect x="3" y="3.5" width="7" height="5" rx="1.5"/><rect x="14" y="9.5" width="7" height="5" rx="1.5"/><rect x="14" y="16" width="7" height="5" rx="1.5"/><path d="M6.5 8.5v10h7.5M6.5 12h7.5"/>',
+  image:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m20 16-4.5-4.5L8 19"/>',
+  audio:'<path d="M5 10v4M9 7v10M13 4v16M17 8v8M21 11v2"/>',
+  list:'<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'
+};
+const tIcon = (k, label, txt="") => `<span class="ti" title="${label}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[k]}</svg>${txt ? `<b>${txt}</b>` : ""}<span class="sr">${label}</span></span>`;
+function typeIcons(n, open, total){
+  const out = [];
+  if (n.kind === "tree") out.push(tIcon("tree", "Baum"));
+  if (total) out.push(tIcon("list", "Checkliste", `${total-open}/${total}`).replace('class="ti"', `class="ti${open ? "" : " done"}"`));
+  if (n.images.length) out.push(tIcon("image", n.images.length === 1 ? "Bild" : n.images.length + " Bilder", n.images.length > 1 ? n.images.length : ""));
+  if ((n.audio||[]).length) out.push(tIcon("audio", n.audio.length === 1 ? "Aufnahme" : n.audio.length + " Aufnahmen", n.audio.length > 1 ? n.audio.length : ""));
+  if (/https?:\/\//.test(n.body) || n.items.some(i => /https?:\/\//.test(i.t))) out.push(tIcon("link", "Link"));
+  return out.join("");
+}
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
 function noteRow(n){
   if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen">
-    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(n.body.trim())}</p></div></li>`;
+    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(n.body.trim())}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const tr = n.kind === "tree" ? parseTree(n.body) : null;
-  const snippet = tr ? `Baum · ${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : n.body.trim() || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
+  const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : n.body.trim() || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
   const title = n.title.trim() || (n.body.trim() ? "" : "");
   return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen">
     <div>
       ${title ? `<p class="nt">${n.pinned ? ICON.pinSm : ""}${esc(title)}</p>` : ""}
       ${snippet ? `<p class="nb" ${title ? "" : 'style="color:var(--ink)"'}>${esc(snippet)}</p>` : (!title ? `<p class="nt untitled">${n.images.length ? "Bild" : "Aufnahme"}</p>` : "")}
       <div class="nm">
-        ${total ? `<span class="prog ${open ? "" : "done"}">${total-open}/${total} erledigt</span>` : ""}
-        ${(n.audio||[]).length ? `<span>${n.audio.length === 1 ? "1 Aufnahme" : n.audio.length + " Aufnahmen"}</span>` : ""}
+        ${typeIcons(n, open, total)}
         ${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}
         <span>${S.view.sort === "created" ? stamp(n.created) : relDate(n.updated)}</span>
       </div>
