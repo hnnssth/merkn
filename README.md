@@ -1,4 +1,4 @@
-# Merkn. (Version 0.17)
+# Merkn. (Version 1.0)
 
 Minimalistische Notizen-App für Privat, Beruflich und Freelance. Läuft ohne KI, ohne Abo und ohne eigenen Server.
 
