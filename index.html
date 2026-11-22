@@ -278,7 +278,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.4";
+const APP_VERSION = "1.5";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1108,7 +1108,7 @@ function replaceDialog(n){
     <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Ersetzen</button></div>`, d => {
     d.querySelector("[data-x]").onclick = closeDialog;
     d.querySelector("[data-ok]").onclick = () => {
-      const raw = d.querySelector("#rep").value; if (!raw.trim()) return;
+      const raw = cleanPaste(d.querySelector("#rep").value); if (!raw) return;
       const p = fromMarkdown(raw, n.id);
       n.body = p.body; n.items = p.items; if (p.kind) n.kind = p.kind;
       edChanged(); closeDialog(); renderEditor(); toast("Inhalt ersetzt.");
@@ -1379,15 +1379,37 @@ function importDialog(){
     <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Als Notiz anlegen</button></div>`, d => {
     d.querySelector("[data-x]").onclick = closeDialog;
     d.querySelector("[data-ok]").onclick = () => {
-      const raw = d.querySelector("#imp").value.trim(); if (!raw) return;
+      const raw = cleanPaste(d.querySelector("#imp").value); if (!raw) return;
       let parts = raw.replace(/^Hier (ist|sind)[^\n]*\n+/i, "").split(/\n\s*---\s*\n(?=\s*(#|---|\S))/).filter(p => p && p.trim() && !/^(#|---|\S)$/.test(p.trim()));
       if (/^---\n/.test(raw)) parts = [raw];
-      let made = 0;
-      for (const p of parts) { const n = fromMarkdown(p, uid()); n.id = uid(); Object.assign(n, {_sha:null, _dirty:false, _rev:0}); if (isEmpty(n)) continue; n.created = n.updated = nowISO(); touch(n, {reclassify:false}); made++; }
-      closeDialog(); render(); toast(made === 1 ? "Notiz angelegt." : `${made} Notizen angelegt.`);
+      const parsed = parts.map(p => fromMarkdown(p, uid())).filter(n => !isEmpty(n));
+      const sameAs = n => n.title.trim() && [...S.notes.values()].find(o => !o._deleted && norm(o.title.trim()) === norm(n.title.trim()));
+      const dups = parsed.filter(sameAs);
+      const finish = mode => {
+        let made = 0, replaced = 0;
+        for (const n of parsed) {
+          const old = sameAs(n);
+          if (old && mode === "replace") { old.body = n.body; old.items = n.items; if (n.kind) old.kind = n.kind; old.tags = [...new Set([...old.tags, ...n.tags])]; if (!n.areaAuto) { old.area = n.area; old.areaAuto = false; } touch(old, {reclassify:false}); replaced++; continue; }
+          if (old && mode === "skip") continue;
+          n.id = uid(); Object.assign(n, {_sha:null, _dirty:false, _rev:0}); n.created = n.updated = nowISO(); touch(n, {reclassify:false}); made++;
+        }
+        closeDialog(); render();
+        toast([replaced ? (replaced === 1 ? "1 Notiz ersetzt" : `${replaced} Notizen ersetzt`) : "", made ? (made === 1 ? "1 Notiz angelegt" : `${made} Notizen angelegt`) : ""].filter(Boolean).join(", ") + "." || "Nichts übernommen.");
+      };
+      if (!dups.length) return finish("new");
+      const names = dups.map(n => `„${esc(n.title)}“`).join(", ");
+      dialog(`<h2>Gibt es schon</h2><p>${names} ${dups.length === 1 ? "ist" : "sind"} bereits in Merkn. Was soll passieren?</p>
+        <div class="row" style="flex-direction:column;align-items:stretch">
+          <button class="btn primary" data-m="replace">Bestehende ersetzen</button>
+          <button class="btn" data-m="new">Zusätzlich neu anlegen</button>
+          <button class="btn" data-m="cancel">Abbrechen</button></div>`, d2 => {
+        d2.querySelectorAll("[data-m]").forEach(b => b.onclick = () => b.dataset.m === "cancel" ? closeDialog() : finish(b.dataset.m));
+      });
     };
   });
 }
+// Eingefügten Text säubern: Code-Zäune aus dem Chat und überflüssige Leerzeilen entfernen
+function cleanPaste(t){ return String(t || "").replace(/\r\n/g, "\n").split("\n").filter(l => !/^\s*```/.test(l)).join("\n").trim(); }
 
 /* ---------- Ordner-Import (z. B. aus Google Keep umgewandelt) ---------- */
 $("#dfile").onchange = async e => {
@@ -1549,6 +1571,11 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
   try {
     const [notes, cfg, settings, queue, welcomed] = await Promise.all([idb.get("notes"), idb.get("cfg"), idb.get("settings"), idb.get("queue"), idb.get("welcomed")]);
     (notes || []).forEach(n => S.notes.set(n.id, n));
+    // Reparatur: Bäume, die eine ältere Version als Text gespeichert hat („Typ: Baum“ steht noch im Text)
+    for (const n of S.notes.values()) if (n.kind !== "tree" && /^Typ:\s*Baum\s*$/mi.test(n.body || "")) {
+      n.kind = "tree"; n.body = n.body.split("\n").filter(l => !/^Typ:\s*Baum\s*$/i.test(l) && !/^\s*```/.test(l)).join("\n").trim();
+      n._dirty = true; n._rev = (n._rev || 0) + 1;
+    }
     if (settings) S.settings = {...S.settings, ...settings};
     if (queue) { S.pendingImg = queue.pendingImg || []; S.deleteImg = queue.deleteImg || []; }
     S.cfg = cfg || null; S.welcome = !cfg && !welcomed;
