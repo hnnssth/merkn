@@ -276,7 +276,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "0.16";
+const APP_VERSION = "0.17";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1080,7 +1080,7 @@ function bindTree(el){
       if (+r.dataset.kids) { treeOpen.has(id) ? treeOpen.delete(id) : treeOpen.add(id); }
       else if (+r.dataset.info) { infoOpen.has(id) ? infoOpen.delete(id) : infoOpen.add(id); }
       renderEditor(); };
-    r.onclick = e => { if (e.target.closest(".tinfo") || e.target.closest("a")) return; act(); };
+    r.onclick = e => { if (e.target.closest("[data-infobtn]") || e.target.closest("a")) return; act(); };
     r.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); } };
   });
   el.querySelectorAll("[data-infobtn]").forEach(b => b.onclick = () => { const id = b.dataset.infobtn; infoOpen.has(id) ? infoOpen.delete(id) : infoOpen.add(id); renderEditor(); });
