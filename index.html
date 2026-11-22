@@ -241,6 +241,15 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .ti svg{flex:none}
 .ti b{font-weight:600;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 .ti.done b{color:var(--privat)}
+.dialog.settings{padding-top:0}
+.snav{position:sticky;top:0;z-index:3;background:var(--sheet);margin:0 -22px;padding:16px 22px 10px;border-bottom:1px solid var(--line)}
+.snavtop{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.snavtop h2{margin:0}
+.snavtop .btn{padding:8px 16px}
+.schips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -22px;padding:0 22px}
+.schips::-webkit-scrollbar{display:none}
+.ssec{padding-top:18px}
+.ssec h3{font:650 17px/1.3 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -263,7 +272,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "0.13";
+const APP_VERSION = "0.14";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -909,6 +918,7 @@ function render(){
     body = timeFilterActive() && !v.q ? `<div class="empty"><strong>Nichts in diesem Zeitraum</strong>Keine Notiz ist ${esc(timeLabel())} entstanden. Ändere den Zeitfilter oben.</div>`
       : v.q ? `<div class="empty"><strong>Nichts gefunden</strong>Keine Notiz passt zu „${esc(v.q)}“${v.area !== "alle" ? " in " + AREA_NAME[v.area] : ""}. Mit # suchst du nach Tags.</div>`
       : v.archive ? `<div class="empty"><strong>Archiv ist leer</strong>Archivierte Notizen landen hier und stören die Liste nicht mehr.</div>`
+      : v.area.startsWith("tag:") && !v.tag ? `<div class="empty"><strong>Noch nichts in ${esc(v.area.slice(4).charAt(0).toUpperCase() + v.area.slice(5))}</strong>Hier erscheint alles mit #${esc(v.area.slice(4))}. Neue Notizen, die du hier mit + anlegst, bekommen den Tag automatisch.<br><button class="btn" id="emptyImport" style="margin-top:14px">Von Claude übernehmen</button></div>`
       : `<div class="empty"><strong>Noch nichts gemerkt</strong>Tippe auf +, um die erste Notiz anzulegen. #Tags im Text werden automatisch übernommen.</div>`;
   } else {
     const shown = rest.slice(0, v.limit);
@@ -952,6 +962,7 @@ function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!
 function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
+  const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
   document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; S.view.limit = 150; render(); });
@@ -1414,35 +1425,54 @@ function bindWelcome(){
 }
 function openSettings(){
   const kw = S.settings.keywords;
-  dialog(`<h2>Einstellungen</h2>
+  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["sort","Einsortieren"],["gh","GitHub"]];
+  dialog(`<div class="snav"><div class="snavtop"><h2>Einstellungen</h2><button class="btn primary" id="sDone">Fertig</button></div>
+    <nav class="schips" aria-label="Abschnitte">${SECS.map(([k,l], i) => `<button class="tag" data-sec="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</nav></div>
+    <section class="ssec" id="st-allg"><h3>Allgemein</h3>
     <p>${esc(statusText())}${S.cfg ? ` · <a href="https://github.com/${esc(S.cfg.owner)}/${esc(S.cfg.repo)}" target="_blank" rel="noopener">Repo öffnen</a>` : ""}</p>
     <div class="row" style="justify-content:flex-start;margin:0 0 6px">
       <button class="btn" id="sImport">Von Claude übernehmen</button>
       <button class="btn" id="sFolder">Ordner importieren</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
-    <h2 style="font-size:17px;margin-top:22px">Aussehen</h2>
+    </section><section class="ssec" id="st-look"><h3>Aussehen</h3>
     <p>Gilt nur für dieses Gerät.</p>
     <div class="themes">${THEMES.map(([k,l,c]) => `<button class="theme" data-theme="${k}" aria-pressed="${(document.documentElement.dataset.theme||"auto") === k}"><span class="sw" style="background:${k === "auto" ? "linear-gradient(90deg,#F2F4F1 50%,#141917 50%)" : c[0]}"><i style="background:${c[2]}"></i><i style="background:${c[3]}"></i><i style="background:${c[4]}"></i><b style="background:${c[1]}"></b></span>${l}</button>`).join("")}</div>
-    <h2 style="font-size:17px;margin-top:22px">Feste Tabs</h2>
+    </section><section class="ssec" id="st-tabs"><h3>Feste Tabs</h3>
     <p>Tags, die als eigener Reiter neben den Bereichen stehen.</p>
     <input class="inp" id="tabIn" value="${esc(tabTags().map(t => "#"+t).join(" "))}" placeholder="#software" autocapitalize="off" autocomplete="off">
-    <h2 style="font-size:17px;margin-top:22px">Favoriten-Tags</h2>
+    </section><section class="ssec" id="st-fav"><h3>Favoriten-Tags</h3>
     <p>Stehen immer vorne in der Filterzeile und lassen sich in jeder Notiz mit einem Tipp setzen. Auch per langem Druck auf einen Tag.</p>
     <input class="inp" id="favIn" value="${esc(favTags().map(t => "#"+t).join(" "))}" placeholder="#apps #idee" autocapitalize="off" autocomplete="off">
-    <h2 style="font-size:17px;margin-top:22px">Automatisch einsortieren</h2>
+    </section><section class="ssec" id="st-sort"><h3>Automatisch einsortieren</h3>
     <p>Kommt eines dieser Wörter vor, landet die Notiz im Bereich. Zusätzlich lernt Merkn aus deinen Tags. Mit Komma trennen.</p>
     ${AREAS.map(a => `<label class="f" for="kw-${a}"><span class="dot" data-a="${a}" style="display:inline-block;margin-right:6px"></span>${AREA_NAME[a]}</label><textarea class="inp" id="kw-${a}" style="min-height:70px">${esc((kw[a]||[]).join(", "))}</textarea>`).join("")}
     <label class="f" for="fb">Wenn nichts passt</label>
     <select class="inp" id="fb">${AREAS.map(a => `<option value="${a}" ${S.settings.fallback === a ? "selected" : ""}>${AREA_NAME[a]}</option>`).join("")}</select>
-    <h2 style="font-size:17px;margin-top:22px">GitHub</h2>
+    </section><section class="ssec" id="st-gh"><h3>GitHub</h3>
     ${connectForm("s")}
     <div class="row">
       ${S.cfg ? `<button class="btn" id="sOff">Trennen</button>` : ""}
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
-      <button class="btn primary" id="sDone">Fertig</button>
     </div>
-    <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p>`, d => {
+    <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p></section>`, d => {
+    d.classList.add("settings");
+    const nav = d.querySelector(".snav"), chips = [...d.querySelectorAll("[data-sec]")];
+    const mark = k => chips.forEach(c => c.setAttribute("aria-pressed", String(c.dataset.sec === k)));
+    let jumping = false, jt;
+    chips.forEach(c => c.onclick = () => {
+      const sec = d.querySelector("#st-" + c.dataset.sec); mark(c.dataset.sec); jumping = true; clearTimeout(jt);
+      d.scrollTo({top: sec.offsetTop - nav.offsetHeight - 6, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+      jt = setTimeout(() => jumping = false, 700);
+      const sc = c.parentElement; if (c.offsetLeft + c.offsetWidth > sc.scrollLeft + sc.clientWidth || c.offsetLeft < sc.scrollLeft) sc.scrollLeft = c.offsetLeft - 22;
+    });
+    d.addEventListener("scroll", () => {
+      if (jumping) return;
+      const y = d.scrollTop + nav.offsetHeight + 24; let cur = SECS[0][0];
+      for (const [k] of SECS) { const sec = d.querySelector("#st-" + k); if (sec.offsetTop <= y) cur = k; }
+      if (d.scrollTop + d.clientHeight >= d.scrollHeight - 4) cur = SECS[SECS.length-1][0];
+      mark(cur);
+    }, {passive:true});
     d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
