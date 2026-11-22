@@ -237,6 +237,8 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .tinfo{flex:none;width:24px;height:24px;border-radius:12px;border:1px solid var(--line);color:var(--faint);font:600 12px/1 var(--text);display:grid;place-items:center}
 .tinfo.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .tcard{margin:2px 0 8px 24px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:14px;display:grid;gap:5px}
+.timg{display:block;width:100%;border-radius:8px;overflow:hidden;background:var(--line);margin-bottom:4px}
+.timg img{display:block;width:100%;max-height:220px;object-fit:cover}
 .tcard div{display:grid;grid-template-columns:86px 1fr;gap:8px;overflow-wrap:anywhere}
 .tcard span{color:var(--faint)}
 .tcard a{color:var(--ink)}
@@ -276,7 +278,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -702,7 +704,8 @@ async function addImages(files){
   for (const f of files) {
     if (!f.type.startsWith("image/")) continue;
     const blob = await compress(f);
-    const path = `images/${n.id}-${Math.random().toString(36).slice(2,8)}.jpg`;
+    const base = slugify((f.name || "").replace(/\.[^.]+$/, ""));
+    const path = `images/${n.id}-${base ? base + "-" : ""}${Math.random().toString(36).slice(2,8)}.jpg`;
     await idb.set("img:" + path, blob);
     n.images.push(path); S.pendingImg.push(path);
   }
@@ -1027,6 +1030,13 @@ function timeDialog(){
 }
 
 /* ---------- Baum ---------- */
+const slugify = t => norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+function imageSlug(n, path){ const pre = `images/${n.id}-`; if (!path.startsWith(pre)) return ""; return path.slice(pre.length).replace(/-?[a-z0-9]{6}\.[a-z0-9]+$/, ""); }
+function treeImage(note, node){
+  const want = slugify(node.props.bild || node.name); if (!want) return null;
+  if (/^\d+$/.test(node.props.bild || "")) return note.images[+node.props.bild - 1] || null;
+  return note.images.find(p => imageSlug(note, p) === want) || null;
+}
 const TREE_KEYS = {version:"Version", status:"Status", info:"Info", link:"Link", seit:"Entstanden", stand:"Stand"};
 function parseTree(text){
   const root = {children:[], depth:-1}, stack = [root];
@@ -1050,7 +1060,8 @@ function statusClass(st){ const s = norm(st); return /alpha/.test(s) ? "alpha" :
 const treeOpen = new Set(), infoOpen = new Set();
 function treeHTML(nodes, path=""){
   return `<ul class="tree">${nodes.map((n, i) => {
-    const id = path + "/" + i, kids = n.children.length, hasInfo = Object.keys(n.props).length > 0;
+    const img = S.open ? treeImage(S.open, n) : null;
+    const id = path + "/" + i, kids = n.children.length, hasInfo = Object.keys(n.props).filter(k => k !== "bild").length > 0 || !!img;
     const open = treeOpen.has(id), info = infoOpen.has(id), p = n.props;
     const link = p.link ? (/^https?:\/\//.test(p.link) ? p.link : "https://" + p.link) : "";
     return `<li>
@@ -1061,10 +1072,11 @@ function treeHTML(nodes, path=""){
         ${p.status ? `<span class="tstat ${statusClass(p.status)}">${esc(p.status)}</span>` : ""}
         ${hasInfo && kids ? `<button class="tinfo${info ? " on" : ""}" data-infobtn="${esc(id)}" aria-label="Infos zu ${esc(n.name)}">i</button>` : hasInfo ? `<span class="tinfo${info ? " on" : ""}" aria-hidden="true">i</span>` : ""}
       </div>
-      ${info && hasInfo ? `<div class="tcard">${Object.entries(p).map(([k,v]) => `<div><span>${esc(TREE_KEYS[k] || k)}</span>${k === "link" ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(v)}</a>` : `<p style="margin:0">${esc(v)}</p>`}</div>`).join("")}</div>` : ""}
+      ${info && hasInfo ? `<div class="tcard">${img ? `<button class="timg" data-img="${esc(img)}" aria-label="Bild von ${esc(n.name)} ansehen"><img data-path="${esc(img)}" alt=""></button>` : ""}${Object.entries(p).filter(([k]) => k !== "bild").map(([k,v]) => `<div><span>${esc(TREE_KEYS[k] || k)}</span>${k === "link" ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(v)}</a>` : `<p style="margin:0">${esc(v)}</p>`}</div>`).join("")}</div>` : ""}
       ${kids && open ? treeHTML(n.children, id) : ""}
     </li>`; }).join("")}</ul>`;
 }
+function treeUsed(note){ const used = new Set(), walk = ns => ns.forEach(x => { const im = treeImage(note, x); if (im) used.add(im); walk(x.children); }); walk(parseTree(note.body)); return used; }
 function allTreeIds(nodes, path="", out=[]){ nodes.forEach((n,i) => { const id = path + "/" + i; if (n.children.length) { out.push(id); allTreeIds(n.children, id, out); } }); return out; }
 function sortTreeText(text){
   const nodes = parseTree(text);
@@ -1172,7 +1184,7 @@ function renderEditor(keepFocus=false){
     ${n.items.length ? `<ul class="items">${openItems.map(itemHTML).join("")}</ul>
       <button class="additem" id="addItem">+ Eintrag</button>
       ${doneItems.length ? `<button class="donetoggle" id="doneToggle">${S.showDone ? "▾" : "▸"} ${doneItems.length} erledigt</button>${S.showDone ? `<ul class="items">${doneItems.map(itemHTML).join("")}</ul>` : ""}` : ""}` : ""}
-    ${n.images.length ? `<div class="imgs">${n.images.map(p => `<button data-img="${esc(p)}" aria-label="Bild ansehen"><img data-path="${esc(p)}" alt=""></button>`).join("")}</div>` : ""}
+    ${(n.kind === "tree" ? n.images.filter(p => !treeUsed(n).has(p)) : n.images).length ? `<div class="imgs">${(n.kind === "tree" ? n.images.filter(p => !treeUsed(n).has(p)) : n.images).map(p => `<button data-img="${esc(p)}" aria-label="Bild ansehen"><img data-path="${esc(p)}" alt=""></button>`).join("")}</div>` : ""}
     ${(n.audio||[]).length ? `<div class="auds">${n.audio.map(p => `<div class="aud"><audio controls preload="metadata" data-path="${esc(p)}"></audio><button class="x" data-unaud="${esc(p)}" aria-label="Aufnahme entfernen">${ICON.x}</button></div>`).join("")}</div>` : ""}
     <div class="edtags">
       ${n.tags.map(t => `<span class="chip">#${esc(t)}<button data-untag="${esc(t)}" aria-label="Tag ${esc(t)} entfernen">${ICON.x}</button></span>`).join("")}
