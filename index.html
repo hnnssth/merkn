@@ -210,7 +210,10 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .list.pinned{position:relative;padding-left:14px;margin-left:2px}
 .list.pinned::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:2px;border-radius:1px;background:var(--faint);opacity:.6}
 .list.pinned .note:last-child{border-bottom:0}
-.pinhead{display:flex;align-items:center;gap:6px}
+.pinhead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:6px 0;cursor:pointer}
+.pinhead:hover{color:var(--ink)}
+.pincount{font-variant-numeric:tabular-nums;color:var(--faint)}
+.pinchev{margin-left:auto;font-size:12px;color:var(--faint);padding-right:4px}
 .pinsm{color:var(--faint);margin-right:6px;vertical-align:-1px;flex:none}
 .ts .pinsm{margin-right:0}
 .areasep{flex:none;width:1px;background:var(--line);margin:2px 0 12px}
@@ -273,7 +276,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "0.15";
+const APP_VERSION = "0.16";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -848,6 +851,7 @@ function tagsInView(){
   return [...fav, ...[...m].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0])).map(x => x[0]).filter(t => !fav.includes(t))];
 }
 const favTags = () => S.settings.favTags || [];
+const pinsCollapsed = () => { try { return localStorage.getItem("merkn-pins") === "zu"; } catch { return false; } };
 const tabTags = () => S.settings.tabTags || [];
 const inArea = (n, a) => a === "alle" ? true : a.startsWith("tag:") ? n.tags.includes(a.slice(4)) : n.area === a;
 function toggleFav(t){
@@ -930,7 +934,8 @@ function render(){
       for (const n of shown) { const d = new Date(n.created), m = d.toLocaleDateString("de-DE",{month:"long",year:"numeric"}); if (m !== cur) { flush(); cur = m; } buf.push(noteRow(n)); }
       flush();
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
-    body = (pinned.length ? `<p class="group pinhead">${ICON.pinSm}Angeheftet</p><ul class="list pinned">${pinned.map(noteRow).join("")}</ul>` : "") + groups
+    const pc = pinsCollapsed();
+    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true">${pc ? "▸" : "▾"}</span></button>${pc ? "" : `<ul class="list pinned">${pinned.map(noteRow).join("")}</ul>`}` : "") + groups
       + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
       + `<div class="endrow"><p class="countline">${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
@@ -963,6 +968,7 @@ function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!
 function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
+  const pt = $("#pinToggle"); if (pt) pt.onclick = () => { try { localStorage.setItem("merkn-pins", pinsCollapsed() ? "auf" : "zu"); } catch {} render(); };
   const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
