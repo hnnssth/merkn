@@ -259,6 +259,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
+const APP_VERSION = "0.12";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1420,7 +1421,8 @@ function openSettings(){
       ${S.cfg ? `<button class="btn" id="sOff">Trennen</button>` : ""}
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
       <button class="btn primary" id="sDone">Fertig</button>
-    </div>`, d => {
+    </div>
+    <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p>`, d => {
     d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
