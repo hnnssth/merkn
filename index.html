@@ -352,7 +352,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.12";
+const APP_VERSION = "1.13";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -363,6 +363,9 @@ const DEFAULT_KW = {
 const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const norm = s => String(s||"").toLowerCase().normalize("NFD").replace(/\p{M}/gu,"");
+// Tags behalten Umlaute; zum Vergleichen wird gefaltet (bücher = bucher = buecher)
+const tagNorm = s => String(s||"").toLowerCase().normalize("NFC").replace(/^#/, "").trim().replace(/\s+/g, "-");
+const fold = s => norm(s).replace(/ß/g, "ss").replace(/ae/g, "a").replace(/oe/g, "o").replace(/ue/g, "u");
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const nowISO = () => new Date().toISOString();
 const ICON = {
@@ -472,7 +475,7 @@ function fromMarkdown(text, fallbackId){
   }
   const now = nowISO();
   const n = { id:String(fm.id || fallbackId || uid()), title:String(title), body:b, items,
-    tags:Array.isArray(fm.tags) ? fm.tags.map(t => norm(String(t)).replace(/\s+/g,"-")) : [],
+    tags:Array.isArray(fm.tags) ? fm.tags.map(t => tagNorm(String(t))) : [],
     area:AREAS.includes(fm.area) ? fm.area : null, areaAuto:fm.areaAuto !== false,
     pinned:!!fm.pinned, archived:!!fm.archived, trashed:!!fm.trashed, trashedAt:fm.trashedAt || null, created:fm.created || now, updated:fm.updated || now,
     images:Array.isArray(fm.images) ? fm.images.map(String) : [], audio:Array.isArray(fm.audio) ? fm.audio.map(String) : [], kind: fm.kind === "tree" ? "tree" : "" };
@@ -499,7 +502,9 @@ function claudeBundle(notes){
 function pullHashtags(n){
   const re = /(^|[\s(])#([\p{L}\p{N}_-]{2,})/gu; let m;
   const src = n.title + "\n" + n.body + "\n" + n.items.map(i => i.t).join("\n");
-  while ((m = re.exec(src))) { const t = norm(m[2]); if (!n.tags.includes(t)) n.tags.push(t); }
+  while ((m = re.exec(src))) { const t = tagNorm(m[2]), old = norm(t);
+    if (old !== t && n.tags.includes(old)) n.tags = n.tags.map(x => x === old ? t : x); // früher ohne Umlaut gespeichert
+    if (!n.tags.includes(t)) n.tags.push(t); }
 }
 function classify(n){
   const score = {privat:0, beruflich:0, freelance:0};
@@ -990,7 +995,7 @@ function visibleNotes(scope = {}){
     if (pq.year && !n.created.startsWith(pq.year) && !norm(n.title + " " + n.body).includes(pq.year)) return false;
     if (!pq.words.length) return true;
     const hay = norm([n.title, n.body, n.items.map(i => i.t).join(" "), n.tags.map(t => "#"+t).join(" "), AREA_NAME[n.area]].join(" "));
-    return pq.words.every(t => t.startsWith("#") ? n.tags.some(x => x.startsWith(t.slice(1))) : hay.includes(t));
+    return pq.words.every(t => t.startsWith("#") ? n.tags.some(x => fold(x).startsWith(fold(t.slice(1)))) : hay.includes(t));
   }).sort((a,b) => (b.pinned - a.pinned) || (b[key] > a[key] ? 1 : b[key] < a[key] ? -1 : 0));
 }
 function counts(){
@@ -1145,7 +1150,7 @@ function render(){
   fillImages(app);
   $("#taglist").innerHTML = allTags().map(t => `<option value="${esc(t)}">`).join("");
 }
-function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!n._deleted) n.tags.forEach(t => s.add(t)); return [...s].sort(); }
+function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!n._deleted) n.tags.forEach(t => s.add(t)); return [...s].sort((a,b) => a.localeCompare(b,"de")); }
 function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
@@ -1203,7 +1208,7 @@ function bindSelBar(){
       done(`${l.length} nach ${AREA_NAME[x.dataset.set]} verschoben.`, () => prev.forEach(([n, a, au]) => { n.area = a; n.areaAuto = au; touch(n, {reclassify:false}); })); });
   });
   if (b("selTag")) b("selTag").onclick = () => dialog(`<h2>Tag hinzufügen</h2><p class="hint">Für ${S.sel.size} ausgewählte ${S.sel.size === 1 ? "Notiz" : "Notizen"}.</p><input id="selTagIn" list="taglist" placeholder="#tag" autocomplete="off" enterkeyhint="done"><div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Hinzufügen</button></div>`, d => {
-    const go = () => { const t = norm(d.querySelector("#selTagIn").value).replace(/^#/, "").trim().replace(/\s+/g, "-"); if (!t) return; closeDialog();
+    const go = () => { const t = tagNorm(d.querySelector("#selTagIn").value); if (!t) return; closeDialog();
       const l = ids().filter(n => !n.tags.includes(t)); l.forEach(n => { n.tags = [...n.tags, t]; touch(n, {reclassify:false}); });
       done(`#${t} bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"} ergänzt.`, () => l.forEach(n => { n.tags = n.tags.filter(x => x !== t); touch(n, {reclassify:false}); })); };
     d.querySelector("[data-x]").onclick = closeDialog; d.querySelector("[data-ok]").onclick = go;
@@ -1512,7 +1517,7 @@ function bindEditor(){
   el.querySelectorAll("[data-untag]").forEach(b => b.onclick = () => { n.tags = n.tags.filter(t => t !== b.dataset.untag); n._edited = true; renderEditor(); });
   el.querySelectorAll("[data-addtag]").forEach(b => b.onclick = () => { n.tags.push(b.dataset.addtag); edChanged(); renderEditor(); });
   const tg = $("#tagIn");
-  const addTag = () => { const v = norm(tg.value).replace(/^#/,"").trim().replace(/\s+/g,"-"); if (v && !n.tags.includes(v)) { n.tags.push(v); edChanged(); renderEditor(); const ti2 = $("#tagIn"); ti2.focus({preventScroll:true}); ensureVisible(ti2); } else tg.value = ""; };
+  const addTag = () => { const v = tagNorm(tg.value); if (v && !n.tags.includes(v)) { n.tags.push(v); edChanged(); renderEditor(); const ti2 = $("#tagIn"); ti2.focus({preventScroll:true}); ensureVisible(ti2); } else tg.value = ""; };
   tg.onkeydown = e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } };
   tg.onchange = addTag;
   el.querySelectorAll("[data-img]").forEach(b => b.onclick = () => openViewer(b.dataset.img));
@@ -1856,8 +1861,8 @@ function openSettings(){
     d.querySelector("#sDone").onclick = () => {
       const next = {}; for (const a of AREAS) next[a] = d.querySelector(`#kw-${a}`).value.split(",").map(s => s.trim()).filter(Boolean);
       const fb = d.querySelector("#fb").value;
-      const fav = [...new Set(d.querySelector("#favIn").value.split(/[\s,]+/).map(t => norm(t.replace(/^#/,""))).filter(Boolean))];
-      const tabs = [...new Set(d.querySelector("#tabIn").value.split(/[\s,]+/).map(t => norm(t.replace(/^#/,""))).filter(Boolean))];
+      const fav = [...new Set(d.querySelector("#favIn").value.split(/[\s,]+/).map(t => tagNorm(t)).filter(Boolean))];
+      const tabs = [...new Set(d.querySelector("#tabIn").value.split(/[\s,]+/).map(t => tagNorm(t)).filter(Boolean))];
       if (JSON.stringify(tabs) !== JSON.stringify(tabTags())) { S.settings.tabTags = tabs; S.settings._dirty = true; if (S.view.area.startsWith("tag:") && !tabs.includes(S.view.area.slice(4))) S.view.area = "alle"; persist(); scheduleSync(500); }
       if (JSON.stringify(fav) !== JSON.stringify(favTags())) { S.settings.favTags = fav; S.settings._dirty = true; persist(); scheduleSync(500); }
       if (JSON.stringify(next) !== JSON.stringify(S.settings.keywords) || fb !== S.settings.fallback) {
@@ -1899,6 +1904,19 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
   } catch (e) { console.warn("Speicher nicht verfügbar", e); }
   applyTheme(document.documentElement.dataset.theme || "auto");
   purgeTrash();
+  // Einmalig: Tags, die früher ohne Umlaut gespeichert wurden, aus dem Text wiederherstellen
+  if (!localStorage.getItem("merkn-umlaut-fix")) {
+    const map = {};
+    const re = /(^|[\s(])#([\p{L}\p{N}_-]{2,})/gu;
+    for (const n of S.notes.values()) { if (n._deleted || !n.tags.length) continue;
+      const src = n.title + "\n" + n.body + "\n" + n.items.map(i => i.t).join("\n"); let m, changed = false; re.lastIndex = 0;
+      while ((m = re.exec(src))) { const t = tagNorm(m[2]), old = norm(t);
+        if (old !== t && n.tags.includes(old)) { n.tags = [...new Set(n.tags.map(x => x === old ? t : x))]; map[old] = t; changed = true; } }
+      if (changed) { n._dirty = true; n._rev = (n._rev||0) + 1; } }
+    if (Object.keys(map).length) { const fx = l => [...new Set((l||[]).map(t => map[t] || t))];
+      S.settings.favTags = fx(S.settings.favTags); if (S.settings.tabTags) S.settings.tabTags = fx(S.settings.tabTags); S.settings._dirty = true; persist(); }
+    try { localStorage.setItem("merkn-umlaut-fix", "1"); } catch {}
+  }
   S.ready = true; setStatus(S.cfg ? "pending" : "local"); render();
   if (S.cfg) sync();
   checkShareInbox();
