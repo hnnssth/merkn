@@ -231,9 +231,9 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .pinchev svg{transition:transform .2s ease}
 .pinhead:hover .pinchev{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .list.dim .note{opacity:.62}
-#upbtn{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));z-index:25;width:42px;height:42px;margin-left:-21px;border-radius:50%;display:grid;place-items:center;background:var(--sheet);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.14);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s}
-#upbtn.on{opacity:1;transform:none;pointer-events:auto}
-@media (prefers-reduced-motion:reduce){#upbtn{transition:none}}
+.jumpbtn{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));z-index:25;width:42px;height:42px;margin-left:-21px;border-radius:50%;display:grid;place-items:center;background:var(--sheet);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.14);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s}
+.jumpbtn.on{opacity:1;transform:none;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){.jumpbtn{transition:none}}
 .morerow{display:flex;gap:8px;flex-wrap:wrap}.morerow .more{flex:1}
 .poemlist{max-height:52vh;overflow:auto;margin:4px -4px 0;padding:0 4px}
 .poemlist h3{font-size:13px;color:var(--muted);font-weight:600;margin:14px 0 4px}
@@ -308,6 +308,14 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 .schips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -22px;padding:0 22px}
 .schips::-webkit-scrollbar{display:none}
 .ssec{padding-top:18px}
+.help{border-bottom:1px solid var(--line)}
+.help summary{cursor:pointer;padding:12px 0;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.help summary::-webkit-details-marker{display:none}
+.help summary::after{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--muted);transition:transform .2s}
+.help[open] summary::after{transform:rotate(180deg)}
+.help dl{margin:0 0 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:2px}
+.help dt{font-weight:600;font-size:14px;margin-top:10px}
+.help dd{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
 .ssec h3{font:650 17px/1.3 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .edbody,.item textarea{field-sizing:content}
 .edbody.read{white-space:pre-wrap;overflow-wrap:anywhere;cursor:text;min-height:60px}
@@ -362,7 +370,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.15";
+const APP_VERSION = "1.16";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1879,7 +1887,7 @@ function bindWelcome(){
 }
 function openSettings(){
   const kw = S.settings.keywords;
-  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["swipe","Wischen"],["sort","Einsortieren"],["gh","GitHub"]];
+  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["swipe","Wischen"],["sort","Einsortieren"],["gh","GitHub"],["hilfe","Hilfe"]];
   dialog(`<div class="snav"><div class="snavtop"><h2>Einstellungen</h2><button class="btn primary" id="sDone">Fertig</button></div>
     <nav class="schips" aria-label="Abschnitte">${SECS.map(([k,l], i) => `<button class="tag" data-sec="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</nav></div>
     <section class="ssec" id="st-allg"><h3>Allgemein</h3>
@@ -1914,6 +1922,8 @@ function openSettings(){
       ${S.cfg ? `<button class="btn" id="sOff">Trennen</button>` : ""}
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
     </div>
+    </section><section class="ssec" id="st-hilfe"><h3>Hilfe</h3>
+    <details class="help"><summary>Notizen anlegen und bearbeiten</summary><dl><dt>+ unten rechts</dt><dd>Neue Notiz. Am Rechner geht auch die Taste N.</dd><dt>Titel und Text</dt><dd>Wird beim Tippen gespeichert. Mit dem Pfeil oben links oder der Zurück-Geste schließt du die Notiz. Leere Notizen verschwinden von selbst.</dd><dt>Liste</dt><dd>Macht aus dem Text eine Checkliste. Abgehakte Punkte rutschen nach unten und lassen sich einklappen.</dd><dt>Bild, Audio, Diktat</dt><dd>Über die Leiste unten in der Notiz. Diktat schreibt mit, was du sprichst.</dd><dt>Anheften</dt><dd>Pinnadel oben in der Notiz. Angeheftete Notizen stehen oben in der Liste; der Bereich lässt sich mit dem Pfeil zuklappen.</dd><dt>Bereich</dt><dd>Der Knopf oben in der Notiz (Privat, Beruflich, Freelance). „auto“ heißt: Merkn sortiert selbst ein, nach den Wörtern unter Einstellungen → Einsortieren.</dd></dl></details><details class="help"><summary>Text gestalten</summary><dl><dt>**fett**</dt><dd>Zwei Sternchen davor und dahinter.</dd><dt># Überschrift</dt><dd>Eine Raute und ein Leerzeichen am Zeilenanfang, ## für kleiner.</dd><dt>- Punkt</dt><dd>Strich und Leerzeichen am Zeilenanfang ergibt eine Aufzählung; Einrücken geht mit Leerzeichen.</dd><dt>Links</dt><dd>Webadressen werden kurz angezeigt und sind antippbar.</dd><dt>[[Titel]]</dt><dd>Link auf eine andere Notiz mit diesem Titel. Grau heißt: gibt es noch nicht, antippen legt sie an.</dd><dt>Zum Bearbeiten</dt><dd>Gestalteten Text einmal antippen, dann siehst du ihn wieder als normalen Text.</dd></dl></details><details class="help"><summary>Tags</summary><dl><dt>#wort im Text</dt><dd>Wird automatisch zum Tag. Umlaute bleiben erhalten.</dd><dt>Tag-Chips unter der Suche</dt><dd>Antippen filtert. Lange drücken macht einen Tag zum Favoriten (Stern); Favoriten stehen vorn und werden in jeder Notiz vorgeschlagen.</dd><dt>Tabs</dt><dd>Unter Einstellungen → Tabs bekommt ein Tag einen eigenen Reiter neben den Bereichen, z. B. Software.</dd></dl></details><details class="help"><summary>Suchen und filtern</summary><dl><dt>Suche</dt><dd>Durchsucht Titel, Text, Listen und Tags, dazu Archiv und Papierkorb. Treffer sind gelb markiert.</dd><dt>#tag</dt><dd>Sucht nur in Tags. #bucher findet auch #bücher.</dd><dt>2019</dt><dd>Eine Jahreszahl filtert nach dem Jahr.</dd><dt>20-24 uhr</dt><dd>Filtert nach der Uhrzeit, zu der eine Notiz entstanden ist.</dd><dt>Zeit</dt><dd>Der Knopf unter der Suche: Jahr, Zeitraum, Uhrzeit und Sortierung.</dd></dl></details><details class="help"><summary>In der Liste</summary><dl><dt>Wischen</dt><dd>Nach rechts oder links wischen löst eine Aktion aus, standardmäßig Anheften und Archivieren. Einstellen unter Einstellungen → Wischen.</dd><dt>Lange drücken</dt><dd>Eintrag 2 Sekunden halten: Er wackelt, dann fragt Merkn, ob er gelöscht werden soll.</dd><dt>Mehrere auswählen</dt><dd>Häkchen-Symbol oben. Dann Notizen antippen und gemeinsam taggen, verschieben, archivieren oder löschen.</dd><dt>Pfeil nach oben / unten</dt><dd>Erscheint, wenn du in einer langen Liste mehrmals in eine Richtung scrollst.</dd><dt>Alle anzeigen</dt><dd>Ganz unten, wenn die Liste länger als 150 Einträge ist.</dd></dl></details><details class="help"><summary>Archiv, Papierkorb, Verlauf</summary><dl><dt>Archiv</dt><dd>Über das ⋯-Menü einer Notiz oder per Wischen. Der Link „Archiv“ steht unten in der Liste.</dd><dt>Löschen</dt><dd>Legt die Notiz in den Papierkorb, 5 Sekunden lang lässt sich das rückgängig machen. Nach 30 Tagen wird sie endgültig entfernt.</dd><dt>Papierkorb</dt><dd>Link unten in der Liste. Dort wiederherstellen, endgültig löschen oder leeren.</dd><dt>Verlauf</dt><dd>⋯-Menü einer Notiz. Zeigt frühere Fassungen von GitHub und holt eine zurück. Braucht Internet.</dd></dl></details><details class="help"><summary>Bäume</summary><dl><dt>Als Baum anzeigen</dt><dd>⋯-Menü einer Notiz. Eingerückte Zeilen mit „- Name“ werden zu einem aufklappbaren Baum.</dd><dt>Eigenschaften</dt><dd>Unter einem Eintrag z. B. „version: 1.0“, „status: Fertig“, „info: …“, „link: …“, „seit: …“, „stand: …“, „bild: …“.</dd></dl></details><details class="help"><summary>Werkzeuge</summary><dl><dt>Gedichte finden</dt><dd>Einstellungen → Allgemein. Sucht gereimte Notizen und vergibt nach deiner Prüfung #lyrik.</dd><dt>Zitate finden</dt><dd>Einstellungen → Allgemein. Sucht Notizen mit Anführungszeichen und vergibt nach deiner Prüfung #zitat.</dd><dt>An Claude übergeben</dt><dd>Pfeil-Symbol oben kopiert alle Notizen der aktuellen Ansicht; im ⋯-Menü einer Notiz nur diese.</dd><dt>Von Claude übernehmen</dt><dd>Einstellungen → Allgemein. Fügt ein, was Claude geschrieben hat. „Inhalt ersetzen“ im ⋯-Menü ersetzt eine Notiz.</dd><dt>Ordner importieren</dt><dd>Einstellungen → Allgemein. Liest einen Ordner mit Notiz-Dateien ein, z. B. aus Google Keep.</dd></dl></details><details class="help"><summary>Sync und Tastatur</summary><dl><dt>Punkt oben</dt><dd>Grün: alles synchron. Orange: Änderungen warten. Rot: Fehler, antippen für Details. Grau: nicht mit GitHub verbunden. Antippen synchronisiert sofort.</dd><dt>GitHub</dt><dd>Notizen liegen in deinem privaten Repo. Der Schlüssel bleibt nur auf diesem Gerät.</dd><dt>⌘K / Strg+K</dt><dd>Springt in die Suche.</dd><dt>N</dt><dd>Neue Notiz.</dd><dt>Esc</dt><dd>Schließt die offene Notiz.</dd></dl></details>
     <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p></section>`, d => {
     d.classList.add("settings");
     const nav = d.querySelector(".snav"), chips = [...d.querySelectorAll("[data-sec]")];
@@ -1972,16 +1982,21 @@ setInterval(() => { if (document.visibilityState === "visible") scheduleSync(0);
 document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e.clipboardData?.files || [])]; const f = fs.filter(x => x.type.startsWith("image/")), a = fs.filter(x => x.type.startsWith("audio/")); if (f.length || a.length) { e.preventDefault(); if (f.length) addImages(f); if (a.length) addAudioFiles(a); } });
 
 /* ---------- Start ---------- */
-// Nach oben: erscheint, wenn man in einer langen Liste wieder nach oben scrollt
-{ let lastY = 0, up = 0;
-  const btn = document.createElement("button"); btn.id = "upbtn"; btn.setAttribute("aria-label", "Nach oben");
-  btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>`;
-  btn.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); btn.classList.remove("on"); up = 0; };
-  document.addEventListener("DOMContentLoaded", () => document.body.appendChild(btn)); if (document.body) document.body.appendChild(btn);
+// Nach oben / nach unten: erscheint, wenn man in einer langen Liste mehrmals in eine Richtung scrollt
+{ let lastY = 0, up = 0, down = 0;
+  const mk = (id, label, path) => { const b = document.createElement("button"); b.id = id; b.className = "jumpbtn"; b.setAttribute("aria-label", label);
+    b.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${path}"/></svg>`; return b; };
+  const ub = mk("upbtn", "Nach oben", "M12 19V5M6 11l6-6 6 6"), db = mk("downbtn", "Nach unten", "M12 5v14M6 13l6 6 6-6");
+  const smooth = () => matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  ub.onclick = () => { window.scrollTo({top:0, behavior:smooth()}); ub.classList.remove("on"); up = down = 0; };
+  db.onclick = () => { window.scrollTo({top:document.documentElement.scrollHeight, behavior:smooth()}); db.classList.remove("on"); up = down = 0; };
+  const add = () => document.body && document.body.append(ub, db); add(); document.addEventListener("DOMContentLoaded", add);
   addEventListener("scroll", () => {
-    const y = scrollY, dy = y - lastY; lastY = y;
-    if (dy < 0) up -= dy; else if (dy > 4) up = 0;
-    btn.classList.toggle("on", y > 900 && up > 250 && !S.open && !S.sel && !$("#dlg"));
+    const y = scrollY, dy = y - lastY, max = document.documentElement.scrollHeight - innerHeight; lastY = y;
+    if (dy < 0) { up -= dy; down = 0; } else if (dy > 0) { down += dy; up = 0; }
+    const free = !S.open && !S.sel && !$("#dlg");
+    ub.classList.toggle("on", free && y > 900 && up > 250);
+    db.classList.toggle("on", free && max - y > 900 && down > 1200 && !ub.classList.contains("on"));
   }, {passive:true});
 }
 (async function init(){
