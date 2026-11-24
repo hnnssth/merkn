@@ -282,6 +282,10 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .swbg svg{flex:none;margin:0 20px;transition:transform .15s ease;transform:scale(.8);opacity:.7}
 .swbg.over{background:var(--c);color:var(--bg)}
 .swbg.over svg{transform:scale(1.1);opacity:1}
+.archivelinks{display:flex;gap:18px;flex-wrap:wrap;margin:26px 0 0}.archivelinks .archivelink{margin:0}
+@keyframes shake{0%,100%{transform:translateX(0) rotate(0)}20%{transform:translateX(-2px) rotate(-.4deg)}40%{transform:translateX(2px) rotate(.4deg)}60%{transform:translateX(-2px) rotate(-.3deg)}80%{transform:translateX(2px) rotate(.3deg)}}
+.note.shake{animation:shake .32s ease-in-out infinite;-webkit-user-select:none;user-select:none}
+.note{-webkit-touch-callout:none}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -304,7 +308,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.8";
+const APP_VERSION = "1.9";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -384,7 +388,7 @@ function persist(){ clearTimeout(saveTimer); saveTimer = setTimeout(async () => 
 
 /* ---------- Markdown-Format ---------- */
 function toMarkdown(n){
-  const fm = {id:n.id, title:n.title, area:n.area, areaAuto:n.areaAuto, tags:n.tags, pinned:n.pinned, archived:n.archived, created:n.created, updated:n.updated, images:n.images, audio:n.audio||[], ...(n.kind ? {kind:n.kind} : {})};
+  const fm = {id:n.id, title:n.title, area:n.area, areaAuto:n.areaAuto, tags:n.tags, pinned:n.pinned, archived:n.archived, ...(n.trashed ? {trashed:true, trashedAt:n.trashedAt} : {}), created:n.created, updated:n.updated, images:n.images, audio:n.audio||[], ...(n.kind ? {kind:n.kind} : {})};
   let s = "---\n" + Object.entries(fm).map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join("\n") + "\n---\n";
   if (n.body.trim()) s += n.body.trim() + "\n";
   if (n.items.length) s += (n.body.trim() ? "\n" : "") + n.items.map(i => `- [${i.d?"x":" "}] ${i.t.replace(/\n/g," ")}`).join("\n") + "\n";
@@ -426,7 +430,7 @@ function fromMarkdown(text, fallbackId){
   const n = { id:String(fm.id || fallbackId || uid()), title:String(title), body:b, items,
     tags:Array.isArray(fm.tags) ? fm.tags.map(t => norm(String(t)).replace(/\s+/g,"-")) : [],
     area:AREAS.includes(fm.area) ? fm.area : null, areaAuto:fm.areaAuto !== false,
-    pinned:!!fm.pinned, archived:!!fm.archived, created:fm.created || now, updated:fm.updated || now,
+    pinned:!!fm.pinned, archived:!!fm.archived, trashed:!!fm.trashed, trashedAt:fm.trashedAt || null, created:fm.created || now, updated:fm.updated || now,
     images:Array.isArray(fm.images) ? fm.images.map(String) : [], audio:Array.isArray(fm.audio) ? fm.audio.map(String) : [], kind: fm.kind === "tree" ? "tree" : "" };
   pullHashtags(n);
   if (!n.area) { n.area = classify(n); n.areaAuto = true; }
@@ -496,6 +500,11 @@ function touch(n, {reclassify=true} = {}){
   if (reclassify) { pullHashtags(n); if (n.areaAuto) n.area = classify(n); }
   S.notes.set(n.id, n); persist(); setStatus(S.cfg ? "pending" : "local"); scheduleSync();
 }
+function trashNote(n){
+  n.trashed = true; n.trashedAt = nowISO(); n.pinned = n.pinned; touch(n, {reclassify:false});
+  toast("In den Papierkorb gelegt.", "Rückgängig", () => { n.trashed = false; n.trashedAt = null; touch(n, {reclassify:false}); render(); });
+}
+function purgeTrash(){ const lim = Date.now() - 30 * 864e5; for (const n of [...S.notes.values()]) if (n.trashed && n.trashedAt && Date.parse(n.trashedAt) < lim) removeNote(n); }
 function removeNote(n){
   for (const p of [...n.images, ...(n.audio||[])]) S.deleteImg.push(p);
   if (n._sha) { n._deleted = true; n._dirty = true; } else S.notes.delete(n.id);
@@ -836,14 +845,12 @@ function swipeAct(n, act){
   const undo = fn => () => { fn(); touch(n, {reclassify:false}); render(); };
   if (act === "pin") { n.pinned = !n.pinned; touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", undo(() => n.pinned = !n.pinned)); }
   else if (act === "archive") { n.archived = !n.archived; touch(n, {reclassify:false}); toast(n.archived ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", undo(() => n.archived = !n.archived)); }
-  else if (act === "delete") {
-    n._pendingDel = true;
-    const t = setTimeout(() => { if (n._pendingDel) { delete n._pendingDel; removeNote(n); render(); } }, 6000);
-    toast("Gelöscht.", "Rückgängig", () => { clearTimeout(t); delete n._pendingDel; render(); });
-  }
+  else if (act === "delete") trashNote(n);
 }
 function bindSwipe(li){
-  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, pid = null, raf = 0;
+  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, pid = null, raf = 0, lp1 = 0, lp2 = 0;
+  const lpCancel = () => { clearTimeout(lp1); clearTimeout(lp2); li.classList.remove("shake"); };
+  li.addEventListener("contextmenu", e => e.preventDefault());
   const parts = () => [...li.children].filter(c => !c.classList.contains("swbg"));
   const bgL = li.querySelector(".swbg.l"), bgR = li.querySelector(".swbg.r");
   const actFor = d => d > 0 ? (S.settings.swipeR || "pin") : (S.settings.swipeL || "archive");
@@ -862,17 +869,28 @@ function bindSwipe(li){
     li.classList.add("sw-anim"); dx = 0; paint();
     setTimeout(() => { li.classList.remove("sw-anim"); [bgL, bgR].forEach(b => { b.style.width = "0px"; b.classList.remove("over"); }); }, 260);
   };
-  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button !== 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; li.classList.remove("sw-anim"); });
+  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button !== 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; li.classList.remove("sw-anim");
+    // Lang drücken: erst wackeln, dann fragen, ob gelöscht werden soll
+    lpCancel();
+    lp1 = setTimeout(() => { li.classList.add("shake"); navigator.vibrate?.(8); }, 1000);
+    lp2 = setTimeout(() => {
+      li.classList.remove("shake"); active = false; li._swiped = true; navigator.vibrate?.(20);
+      const n = S.notes.get(li.dataset.id); if (!n) return;
+      confirmDialog("Notiz löschen?", `„${(n.title || plainMd(n.body).split("\n")[0] || "Ohne Titel").slice(0, 60)}“ kommt in den Papierkorb.`, "Löschen", () => { trashNote(n); render(); });
+      setTimeout(() => li._swiped = false, 400);
+    }, 3000);
+  });
   li.addEventListener("pointermove", e => {
     if (!active || e.pointerId !== pid) return;
     const mx = e.clientX - x0, my = e.clientY - y0;
-    if (!decided) { if (Math.abs(mx) < 10 && Math.abs(my) < 10) return; decided = true; if (Math.abs(my) > Math.abs(mx)) { active = false; return; } try { li.setPointerCapture(pid); } catch {} }
+    if (!decided) { if (Math.abs(mx) < 10 && Math.abs(my) < 10) return; lpCancel(); decided = true; if (Math.abs(my) > Math.abs(mx)) { active = false; return; } try { li.setPointerCapture(pid); } catch {} }
     const w = li.offsetWidth, lim = w * 0.75; // weicher Widerstand zum Ende hin
     dx = Math.sign(mx) * (Math.abs(mx) < 120 ? Math.abs(mx) : 120 + (Math.abs(mx) - 120) * 0.55);
     dx = Math.max(-lim, Math.min(lim, dx));
     if (!raf) raf = requestAnimationFrame(paint);
   });
   const end = () => {
+    lpCancel();
     if (!active) return; active = false;
     if (decided) li._swiped = true;
     const n = S.notes.get(li.dataset.id), a = actFor(dx);
@@ -918,7 +936,7 @@ function visibleNotes(){
   const v = S.view, pq = parseQuery(v.q), key = v.sort === "created" ? "created" : "updated";
   return [...S.notes.values()].filter(n => {
     if (n._deleted || n._pendingDel || isEmpty(n)) return false;
-    if (!!n.archived !== v.archive) return false;
+    if (v.trash ? !n.trashed : (n.trashed || !!n.archived !== v.archive)) return false;
     if (!inArea(n, v.area)) return false;
     if (v.tag && !n.tags.includes(v.tag)) return false;
     if (v.from && localDay(n.created) < v.from) return false;
@@ -933,12 +951,12 @@ function visibleNotes(){
 }
 function counts(){
   const c = {alle:0, privat:0, beruflich:0, freelance:0};
-  for (const n of S.notes.values()) if (!n._deleted && !n.archived && !isEmpty(n)) { c.alle++; c[n.area]++; for (const t of n.tags) if (tabTags().includes(t)) c["tag:" + t] = (c["tag:" + t] || 0) + 1; }
+  for (const n of S.notes.values()) if (!n._deleted && !n.archived && !n.trashed && !isEmpty(n)) { c.alle++; c[n.area]++; for (const t of n.tags) if (tabTags().includes(t)) c["tag:" + t] = (c["tag:" + t] || 0) + 1; }
   return c;
 }
 function tagsInView(){
   const m = new Map();
-  for (const n of S.notes.values()) { if (n._deleted || !!n.archived !== S.view.archive) continue;
+  for (const n of S.notes.values()) { if (n._deleted || (S.view.trash ? !n.trashed : (n.trashed || !!n.archived !== S.view.archive))) continue;
     if (!inArea(n, S.view.area)) continue;
     for (const t of n.tags) m.set(t, (m.get(t)||0) + 1); }
   const fav = favTags();
@@ -1012,12 +1030,14 @@ function render(){
   const v = S.view, c = counts(), list = visibleNotes(), tags = tagsInView();
   if (v.tag && !tags.includes(v.tag)) v.tag = null;
   const pinned = list.filter(n => n.pinned), rest = list.filter(n => !n.pinned);
-  const archCount = [...S.notes.values()].filter(n => n.archived && !n._deleted).length;
+  const archCount = [...S.notes.values()].filter(n => n.archived && !n.trashed && !n._deleted).length;
+  const trashCount = [...S.notes.values()].filter(n => n.trashed && !n._deleted).length;
   const focused = document.activeElement && document.activeElement.id === "q";
   let body;
   if (!list.length) {
     body = timeFilterActive() && !v.q ? `<div class="empty"><strong>Nichts in diesem Zeitraum</strong>Keine Notiz ist ${esc(timeLabel())} entstanden. Ändere den Zeitfilter oben.</div>`
       : v.q ? `<div class="empty"><strong>Nichts gefunden</strong>Keine Notiz passt zu „${esc(v.q)}“${v.area !== "alle" ? " in " + AREA_NAME[v.area] : ""}. Mit # suchst du nach Tags.</div>`
+      : v.trash ? `<div class="empty"><strong>Papierkorb ist leer</strong>Gelöschte Notizen bleiben hier 30 Tage, dann werden sie endgültig entfernt.</div>`
       : v.archive ? `<div class="empty"><strong>Archiv ist leer</strong>Archivierte Notizen landen hier und stören die Liste nicht mehr.</div>`
       : v.area.startsWith("tag:") && !v.tag ? `<div class="empty"><strong>Noch nichts in ${esc(v.area.slice(4).charAt(0).toUpperCase() + v.area.slice(5))}</strong>Hier erscheint alles mit #${esc(v.area.slice(4))}. Neue Notizen, die du hier mit + anlegst, bekommen den Tag automatisch.<br><button class="btn" id="emptyImport" style="margin-top:14px">Von Claude übernehmen</button></div>`
       : `<div class="empty"><strong>Noch nichts gemerkt</strong>Tippe auf +, um die erste Notiz anzulegen. #Tags im Text werden automatisch übernommen.</div>`;
@@ -1037,7 +1057,7 @@ function render(){
   }
   app.innerHTML = `<div class="wrap">
     <header class="top">
-      <h1 class="mark">${v.archive ? `<button id="leaveArch" class="iconbtn" style="display:inline-grid;vertical-align:middle;margin-left:-10px" aria-label="Zurück zur Liste">${ICON.back}</button>Archiv` : "Merkn<span>.</span>"}</h1>
+      <h1 class="mark">${v.archive || v.trash ? `<button id="leaveArch" class="iconbtn" style="display:inline-grid;vertical-align:middle;margin-left:-10px" aria-label="Zurück zur Liste">${ICON.back}</button>${v.trash ? "Papierkorb" : "Archiv"}` : "Merkn<span>.</span>"}</h1>
       <button class="iconbtn" id="syncbtn" title="${esc(statusText())}" aria-label="Synchronisieren"><span class="status" id="status" data-s="${S.status}"></span></button>
       <button class="iconbtn" id="share" title="Aktuelle Ansicht an Claude übergeben" aria-label="Aktuelle Ansicht an Claude übergeben"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-4"/></svg></button>
       <button class="iconbtn" id="settings" aria-label="Einstellungen">${ICON.gear}</button>
@@ -1051,9 +1071,10 @@ function render(){
     </nav>
     ${`<div class="tags" role="group" aria-label="Filter"><button class="tag timechip" id="timeChip" aria-pressed="${timeFilterActive()}">${ICON.clock} ${esc(timeLabel())}</button>${tags.map(t => `<button class="tag${favTags().includes(t) ? " fav" : ""}" data-t="${esc(t)}" aria-pressed="${v.tag === t}" title="Lange drücken: als Favorit markieren">${favTags().includes(t) ? ICON.star : ""}#${esc(t)}</button>`).join("")}</div>`}
     ${body}
-    ${!v.archive && archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}
+    ${v.trash && list.length ? `<p class="hint" style="margin-top:18px">Gelöschte Notizen bleiben 30 Tage hier, dann werden sie endgültig entfernt. Öffnen, um sie wiederherzustellen.</p><button class="more" id="emptyTrash" style="color:var(--danger)">Papierkorb leeren</button>` : ""}
+    ${!v.archive && !v.trash && (archCount || trashCount) ? `<p class="archivelinks">${archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}${trashCount ? `<a href="#" class="archivelink" id="toTrash">Papierkorb (${trashCount})</a>` : ""}</p>` : ""}
   </div>
-  ${v.archive ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
+  ${v.archive || v.trash ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
   bindList();
   { const nav = document.querySelector(".areas"), act = nav?.querySelector('[aria-pressed="true"]'); if (nav && act && (act.offsetLeft + act.offsetWidth > nav.scrollLeft + nav.clientWidth || act.offsetLeft < nav.scrollLeft)) nav.scrollLeft = act.offsetLeft - 20; }
   if (focused) { const q = $("#q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
@@ -1088,7 +1109,9 @@ function bindList(){
   $("#syncbtn").onclick = () => { if (!S.cfg) openSettings(); else if (S.status === "err") toast(S.statusMsg, "Erneut", sync); else sync(); };
   $("#share").onclick = () => { const l = visibleNotes(); if (!l.length) return toast("Keine Notizen in dieser Ansicht."); copyForClaude(l); };
   const ta = $("#toArch"); if (ta) ta.onclick = e => { e.preventDefault(); S.view.archive = true; render(); };
-  const la = $("#leaveArch"); if (la) la.onclick = () => { S.view.archive = false; render(); };
+  const la = $("#leaveArch"); if (la) la.onclick = () => { S.view.archive = false; S.view.trash = false; render(); };
+  const tt2 = $("#toTrash"); if (tt2) tt2.onclick = e => { e.preventDefault(); S.view.trash = true; S.view.archive = false; render(); window.scrollTo(0,0); };
+  const et = $("#emptyTrash"); if (et) et.onclick = () => confirmDialog("Papierkorb leeren?", "Alle Notizen im Papierkorb werden auf allen Geräten endgültig gelöscht. Das lässt sich nicht rückgängig machen.", "Endgültig löschen", () => { [...S.notes.values()].filter(n => n.trashed).forEach(removeNote); render(); toast("Papierkorb geleert."); });
 }
 function newMenuOrNote(anchor){
   let pressTimer = null;
@@ -1458,12 +1481,15 @@ function moreMenu(anchor){
     <button data-act="replace" role="menuitem">Inhalt ersetzen (von Claude)</button>
     <button data-act="tree" role="menuitem">${n.kind === "tree" ? "Als normale Notiz anzeigen" : "Als Baum anzeigen"}</button>
     <button data-act="arch" role="menuitem">${n.archived ? "Aus Archiv holen" : "Archivieren"}</button>
-    <hr><button data-act="del" class="danger" role="menuitem">Löschen</button>`, p => {
+    <hr>${n.trashed ? `<button data-act="restore" role="menuitem">Wiederherstellen</button><button data-act="purge" class="danger" role="menuitem">Endgültig löschen</button>` : `<button data-act="del" class="danger" role="menuitem">Löschen</button>`}`, p => {
     p.querySelector('[data-act="claude"]').onclick = () => { closePop(); copyForClaude([n]); };
     p.querySelector('[data-act="replace"]').onclick = () => { closePop(); replaceDialog(n); };
     p.querySelector('[data-act="tree"]').onclick = () => { closePop(); n.kind = n.kind === "tree" ? "" : "tree"; S.treeEdit = false; treeOpen.clear(); if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i)); n._edited = true; edChanged(); renderEditor(); };
     p.querySelector('[data-act="arch"]').onclick = () => { closePop(); n.archived = !n.archived; touch(n, {reclassify:false}); const was = n.archived; closeEditor(); toast(was ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !was; touch(n, {reclassify:false}); render(); }); };
-    p.querySelector('[data-act="del"]').onclick = () => { closePop(); confirmDialog("Notiz löschen?", "Die Notiz wird auf allen Geräten entfernt.", "Löschen", () => { const k = S.open; S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove(); if (history.state && history.state.ed) history.back(); removeNote(k); render(); toast("Gelöscht."); }); };
+    const leave = () => { const k = S.open; S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove(); if (history.state && history.state.ed) history.back(); return k; };
+    const del = p.querySelector('[data-act="del"]'); if (del) del.onclick = () => { closePop(); const k = leave(); trashNote(k); render(); };
+    const rs = p.querySelector('[data-act="restore"]'); if (rs) rs.onclick = () => { closePop(); const k = leave(); k.trashed = false; k.trashedAt = null; touch(k, {reclassify:false}); render(); toast("Wiederhergestellt."); };
+    const pg = p.querySelector('[data-act="purge"]'); if (pg) pg.onclick = () => { closePop(); confirmDialog("Endgültig löschen?", "Die Notiz wird auf allen Geräten entfernt und lässt sich nicht wiederherstellen.", "Endgültig löschen", () => { const k = leave(); removeNote(k); render(); toast("Endgültig gelöscht."); }); };
   });
 }
 function dialog(html, onBind){
@@ -1489,7 +1515,7 @@ function toast(msg, action, fn){
   t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action)}</button>` : ""}`;
   document.body.appendChild(t);
   if (action) t.querySelector("button").onclick = () => { t.remove(); fn(); };
-  toastTimer = setTimeout(() => t.remove(), action ? 6000 : 3000);
+  toastTimer = setTimeout(() => t.remove(), action ? 5000 : 3000);
 }
 function openViewer(path){
   const v = document.createElement("div"); v.className = "viewer";
@@ -1722,6 +1748,7 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
     S.cfg = cfg || null; S.welcome = !cfg && !welcomed;
   } catch (e) { console.warn("Speicher nicht verfügbar", e); }
   applyTheme(document.documentElement.dataset.theme || "auto");
+  purgeTrash();
   S.ready = true; setStatus(S.cfg ? "pending" : "local"); render();
   if (S.cfg) sync();
   checkShareInbox();
