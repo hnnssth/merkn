@@ -317,7 +317,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.10";
+const APP_VERSION = "1.11";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -881,13 +881,13 @@ function bindSwipe(li){
   li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button !== 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; li.classList.remove("sw-anim");
     // Lang drücken: erst wackeln, dann fragen, ob gelöscht werden soll
     lpCancel();
-    lp1 = setTimeout(() => { li.classList.add("shake"); navigator.vibrate?.(8); }, 1000);
+    lp1 = setTimeout(() => { li.classList.add("shake"); navigator.vibrate?.(8); }, 500);
     lp2 = setTimeout(() => {
       li.classList.remove("shake"); active = false; li._swiped = true; navigator.vibrate?.(20);
       const n = S.notes.get(li.dataset.id); if (!n) return;
       confirmDialog("Notiz löschen?", `„${(n.title || plainMd(n.body).split("\n")[0] || "Ohne Titel").slice(0, 60)}“ kommt in den Papierkorb.`, "Löschen", () => { trashNote(n); render(); });
       setTimeout(() => li._swiped = false, 400);
-    }, 3000);
+    }, 2000);
   });
   li.addEventListener("pointermove", e => {
     if (!active || e.pointerId !== pid) return;
