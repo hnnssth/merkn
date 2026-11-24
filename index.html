@@ -213,7 +213,16 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .pinhead{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:6px 0;cursor:pointer}
 .pinhead:hover{color:var(--ink)}
 .pincount{font-variant-numeric:tabular-nums;color:var(--faint)}
-.pinchev{margin-left:auto;width:32px;height:32px;display:grid;place-items:center;font-size:20px;line-height:1;color:var(--muted)}
+.pinchev{margin-left:auto;width:44px;height:44px;display:grid;place-items:center;color:var(--muted);border-radius:50%}
+.pinchev svg{transition:transform .2s ease}
+.pinhead:hover .pinchev{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.pinhead[aria-expanded="false"] .pincount{color:var(--ink);font-weight:600;background:color-mix(in srgb,var(--ink) 8%,transparent);padding:1px 8px;border-radius:10px}
+.list.dim .note{opacity:.62}
+.xhead{margin-top:22px}
+.hits{color:var(--faint);font-size:13px;margin:4px 0 2px}
+.nm .left{color:var(--danger)}
+mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-radius:2px;padding:0 1px}
+@media (prefers-reduced-motion:reduce){.pinchev svg{transition:none}}
 .pinsm{color:var(--faint);margin-right:6px;vertical-align:-1px;flex:none}
 .ts .pinsm{margin-right:0}
 .areasep{flex:none;width:1px;background:var(--line);margin:2px 0 12px}
@@ -308,7 +317,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.9";
+const APP_VERSION = "1.10";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -843,7 +852,7 @@ const SWIPE = {
 };
 function swipeAct(n, act){
   const undo = fn => () => { fn(); touch(n, {reclassify:false}); render(); };
-  if (act === "pin") { n.pinned = !n.pinned; touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", undo(() => n.pinned = !n.pinned)); }
+  if (act === "pin") { n.pinned = !n.pinned; if (n.pinned) try { localStorage.setItem("merkn-pins", "auf"); } catch {} touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", undo(() => n.pinned = !n.pinned)); }
   else if (act === "archive") { n.archived = !n.archived; touch(n, {reclassify:false}); toast(n.archived ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", undo(() => n.archived = !n.archived)); }
   else if (act === "delete") trashNote(n);
 }
@@ -932,8 +941,8 @@ function timeLabel(){
   if (v.h1 != null) parts.push(`${v.h1}–${v.h2 === 0 ? 24 : v.h2} Uhr`);
   return parts.join(" · ") || "Zeit";
 }
-function visibleNotes(){
-  const v = S.view, pq = parseQuery(v.q), key = v.sort === "created" ? "created" : "updated";
+function visibleNotes(scope = {}){
+  const v = {...S.view, ...scope}, pq = parseQuery(v.q), key = v.sort === "created" ? "created" : "updated";
   return [...S.notes.values()].filter(n => {
     if (n._deleted || n._pendingDel || isEmpty(n)) return false;
     if (v.trash ? !n.trashed : (n.trashed || !!n.archived !== v.archive)) return false;
@@ -1000,9 +1009,17 @@ function typeIcons(n, open, total){
   return out.join("");
 }
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
+// Suchwörter in Treffern markieren (auf bereits maskiertem Text)
+function hl(html){
+  const w = parseQuery(S.view.q).words.filter(t => !t.startsWith("#") && t.length > 1);
+  if (!w.length) return html;
+  const re = new RegExp("(" + w.map(t => esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")", "gi");
+  return html.split(/(<[^>]+>|&[a-z#0-9]+;)/i).map((part, i) => i % 2 ? part : part.replace(re, "<mark>$1</mark>")).join("");
+}
+function trashLeft(n){ const d = Math.max(0, Math.ceil(30 - (Date.now() - Date.parse(n.trashedAt || n.updated)) / 864e5)); return d === 1 ? "noch 1 Tag" : `noch ${d} Tage`; }
 function noteRow(n){
   if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen"><span class="swbg l"></span><span class="swbg r"></span>
-    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(plainMd(shortLinks(n.body.trim())))}</p></div></li>`;
+    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${hl(esc(plainMd(shortLinks(n.body.trim()))))}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const tr = n.kind === "tree" ? parseTree(n.body) : null;
   const bodyLines = plainMd(shortLinks(n.body.trim())).split("\n").map(x => x.trim()).filter(Boolean);
@@ -1011,12 +1028,13 @@ function noteRow(n){
   const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : (autoTitle ? bodyLines.slice(1) : bodyLines).join(" ") || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
   return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen"><span class="swbg l"></span><span class="swbg r"></span>
     <div>
-      ${title ? `<p class="nt">${n.pinned ? ICON.pinSm : ""}${esc(title)}</p>` : ""}
-      ${snippet ? `<p class="nb" ${title ? "" : 'style="color:var(--ink)"'}>${esc(snippet)}</p>` : (!title ? `<p class="nt untitled">${n.images.length ? "Bild" : "Aufnahme"}</p>` : "")}
+      ${title ? `<p class="nt">${n.pinned ? ICON.pinSm : ""}${hl(esc(title))}</p>` : ""}
+      ${snippet ? `<p class="nb" ${title ? "" : 'style="color:var(--ink)"'}>${hl(esc(snippet))}</p>` : (!title ? `<p class="nt untitled">${n.images.length ? "Bild" : "Aufnahme"}</p>` : "")}
       <div class="nm">
         ${typeIcons(n, open, total)}
         ${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}
         <span>${S.view.sort === "created" ? stamp(n.created) : relDate(n.updated)}</span>
+        ${n.trashed ? `<span class="left">${trashLeft(n)}</span>` : ""}
       </div>
     </div>
     ${n.images[0] ? `<img class="thumb" data-path="${esc(n.images[0])}" alt="">` : ""}
@@ -1028,6 +1046,13 @@ function render(){
   const app = $("#app");
   if (S.welcome) { app.innerHTML = welcomeHTML(); bindWelcome(); return; }
   const v = S.view, c = counts(), list = visibleNotes(), tags = tagsInView();
+  // Bei einer Suche auch Archiv und Papierkorb durchsuchen
+  const searching = !!v.q.trim() && !v.archive && !v.trash;
+  const xArch = searching ? visibleNotes({archive:true, trash:false}) : [], xTrash = searching ? visibleNotes({trash:true}) : [];
+  const hits = list.length + xArch.length + xTrash.length;
+  const filtered = timeFilterActive() || !!v.tag || v.area !== "alle";
+  const extras = (xArch.length ? `<p class="group xhead">Im Archiv · ${xArch.length}</p><ul class="list dim">${xArch.slice(0, 50).map(noteRow).join("")}</ul>` : "")
+    + (xTrash.length ? `<p class="group xhead">Im Papierkorb · ${xTrash.length}</p><ul class="list dim">${xTrash.slice(0, 50).map(noteRow).join("")}</ul>` : "");
   if (v.tag && !tags.includes(v.tag)) v.tag = null;
   const pinned = list.filter(n => n.pinned), rest = list.filter(n => !n.pinned);
   const archCount = [...S.notes.values()].filter(n => n.archived && !n.trashed && !n._deleted).length;
@@ -1036,7 +1061,8 @@ function render(){
   let body;
   if (!list.length) {
     body = timeFilterActive() && !v.q ? `<div class="empty"><strong>Nichts in diesem Zeitraum</strong>Keine Notiz ist ${esc(timeLabel())} entstanden. Ändere den Zeitfilter oben.</div>`
-      : v.q ? `<div class="empty"><strong>Nichts gefunden</strong>Keine Notiz passt zu „${esc(v.q)}“${v.area !== "alle" ? " in " + AREA_NAME[v.area] : ""}. Mit # suchst du nach Tags.</div>`
+      : v.q && extras ? `<div class="empty" style="padding:24px 0 8px">In der Liste passt nichts zu „${esc(v.q)}“, aber hier:</div>`
+      : v.q ? `<div class="empty"><strong>Nichts gefunden</strong>Keine Notiz passt zu „${esc(v.q)}“${v.area !== "alle" ? " in " + AREA_NAME[v.area] : ""}, auch nicht im Archiv oder Papierkorb. Mit # suchst du nach Tags.${filtered ? `<br><button class="btn" id="resetFilters" style="margin-top:14px">Filter aktiv – zurücksetzen</button>` : ""}</div>`
       : v.trash ? `<div class="empty"><strong>Papierkorb ist leer</strong>Gelöschte Notizen bleiben hier 30 Tage, dann werden sie endgültig entfernt.</div>`
       : v.archive ? `<div class="empty"><strong>Archiv ist leer</strong>Archivierte Notizen landen hier und stören die Liste nicht mehr.</div>`
       : v.area.startsWith("tag:") && !v.tag ? `<div class="empty"><strong>Noch nichts in ${esc(v.area.slice(4).charAt(0).toUpperCase() + v.area.slice(5))}</strong>Hier erscheint alles mit #${esc(v.area.slice(4))}. Neue Notizen, die du hier mit + anlegst, bekommen den Tag automatisch.<br><button class="btn" id="emptyImport" style="margin-top:14px">Von Claude übernehmen</button></div>`
@@ -1051,9 +1077,9 @@ function render(){
       flush();
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
     const pc = pinsCollapsed();
-    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true">${pc ? "▸" : "▾"}</span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
+    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(${pc ? -90 : 0}deg)"><path d="M6 9l6 6 6-6"/></svg></span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
       + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
-      + `<div class="endrow"><p class="countline">${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
+      + `<div class="endrow"><p class="countline">${searching ? "" : `${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}`}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
   app.innerHTML = `<div class="wrap">
     <header class="top">
@@ -1070,9 +1096,10 @@ function render(){
       ${tabTags().length ? `<span class="areasep" aria-hidden="true"></span>` + tabTags().map(t => `<button class="area tabtag" data-a="tag:${esc(t)}" aria-pressed="${v.area === "tag:" + t}">${esc(t.charAt(0).toUpperCase() + t.slice(1))}<sup>${v.archive ? "" : (c["tag:" + t] || 0)}</sup></button>`).join("") : ""}
     </nav>
     ${`<div class="tags" role="group" aria-label="Filter"><button class="tag timechip" id="timeChip" aria-pressed="${timeFilterActive()}">${ICON.clock} ${esc(timeLabel())}</button>${tags.map(t => `<button class="tag${favTags().includes(t) ? " fav" : ""}" data-t="${esc(t)}" aria-pressed="${v.tag === t}" title="Lange drücken: als Favorit markieren">${favTags().includes(t) ? ICON.star : ""}#${esc(t)}</button>`).join("")}</div>`}
-    ${body}
+    ${searching ? `<p class="hits">${hits} ${hits === 1 ? "Treffer" : "Treffer"}${xArch.length || xTrash.length ? " inklusive Archiv und Papierkorb" : ""}</p>` : ""}
+    ${body}${extras}
     ${v.trash && list.length ? `<p class="hint" style="margin-top:18px">Gelöschte Notizen bleiben 30 Tage hier, dann werden sie endgültig entfernt. Öffnen, um sie wiederherzustellen.</p><button class="more" id="emptyTrash" style="color:var(--danger)">Papierkorb leeren</button>` : ""}
-    ${!v.archive && !v.trash && (archCount || trashCount) ? `<p class="archivelinks">${archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}${trashCount ? `<a href="#" class="archivelink" id="toTrash">Papierkorb (${trashCount})</a>` : ""}</p>` : ""}
+    ${!v.archive && !v.trash && !searching && (archCount || trashCount) ? `<p class="archivelinks">${archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}${trashCount ? `<a href="#" class="archivelink" id="toTrash">Papierkorb (${trashCount})</a>` : ""}</p>` : ""}
   </div>
   ${v.archive || v.trash ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
   bindList();
@@ -1086,6 +1113,7 @@ function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
   const pa = $("#pinAll"); if (pa) pa.onclick = () => { S.pinAll = !S.pinAll; render(); };
+  const rf = $("#resetFilters"); if (rf) rf.onclick = () => { Object.assign(S.view, {from:"", to:"", h1:null, h2:null, tag:null, area:"alle", limit:150}); render(); };
   const pt = $("#pinToggle"); if (pt) pt.onclick = () => { try { localStorage.setItem("merkn-pins", pinsCollapsed() ? "auf" : "zu"); } catch {} render(); };
   const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
@@ -1403,7 +1431,7 @@ function bindEditor(){
   tg.onkeydown = e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } };
   tg.onchange = addTag;
   el.querySelectorAll("[data-img]").forEach(b => b.onclick = () => openViewer(b.dataset.img));
-  $("#edPin").onclick = () => { n.pinned = !n.pinned; n._edited = true; edChanged(); renderEditor(); };
+  $("#edPin").onclick = () => { n.pinned = !n.pinned; if (n.pinned) try { localStorage.setItem("merkn-pins", "auf"); } catch {} n._edited = true; edChanged(); renderEditor(); };
   $("#edArea").onclick = e => areaMenu(e.currentTarget);
   $("#edMore").onclick = e => moreMenu(e.currentTarget);
   $("#tbList").onclick = () => {
