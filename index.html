@@ -231,6 +231,13 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .pinchev svg{transition:transform .2s ease}
 .pinhead:hover .pinchev{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .list.dim .note{opacity:.62}
+.morerow{display:flex;gap:8px;flex-wrap:wrap}.morerow .more{flex:1}
+.poemlist{max-height:52vh;overflow:auto;margin:4px -4px 0;padding:0 4px}
+.poemlist h3{font-size:13px;color:var(--muted);font-weight:600;margin:14px 0 4px}
+.prow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.prow input{margin-top:3px;width:18px;height:18px;accent-color:var(--ink)}
+.prow strong{display:block;font-size:15px;font-weight:600}
+.prow small{display:block;color:var(--muted);font-size:13px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nlink{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;color:var(--ink);font-weight:500}
 .nlink.missing{color:var(--muted)}
 .hist{display:flex;flex-direction:column;max-height:50vh;overflow:auto;margin:6px 0 4px}
@@ -352,7 +359,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.13";
+const APP_VERSION = "1.14";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1118,7 +1125,7 @@ function render(){
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
     const pc = pinsCollapsed();
     body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="transform:rotate(${pc ? -90 : 0}deg)"><path d="M3 7h18L12 19z"/></svg></span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
-      + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
+      + (rest.length > shown.length ? `<div class="morerow"><button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} anzeigen</button>${rest.length - shown.length > 150 ? `<button class="more" id="moreAll">Alle ${rest.length - shown.length} anzeigen</button>` : ""}</div>` : "")
       + `<div class="endrow"><p class="countline">${searching ? "" : `${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}`}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
   app.innerHTML = `<div class="wrap">
@@ -1160,6 +1167,7 @@ function bindList(){
   const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
+  const ma = $("#moreAll"); if (ma) ma.onclick = () => { S.view.limit = Infinity; render(); };
   document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; S.view.limit = 150; render(); });
   document.querySelectorAll(".tag[data-t]").forEach(b => {
     let timer = null, long = false;
@@ -1647,6 +1655,56 @@ async function historyDialog(n){
     });
   });
 }
+/* ---------- Gedichte erkennen (feste Regeln, keine KI) ---------- */
+const VOW = "aeiouyäöü";
+function rhymeKey(line){
+  const w = (line.toLowerCase().match(/[a-zäöüß]+/g) || []).pop(); if (!w || w.length < 2) return null;
+  let x = w.replace(/ß/g, "ss").replace(/ck/g, "k").replace(/ie/g, "i").replace(/([aeiouäöü])h/g, "$1").replace(/(.)\1/g, "$1")
+    .replace(/ä/g, "e").replace(/eu|äu/g, "oi").replace(/ei|ai/g, "ai").replace(/d$/, "t").replace(/g$/, "k").replace(/b$/, "p");
+  // Vokalgruppen von hinten: bei unbetonter Endung (Hände/Ende, Sonne/Wonne) die vorletzte mit nehmen
+  const groups = [...x.matchAll(/[aeiouyöü]+/g)]; if (!groups.length) return null;
+  let g = groups[groups.length - 1];
+  if (groups.length > 1 && /^e[lnrmst]?$|^en[st]?$|^er[nst]?$/.test(x.slice(g.index))) g = groups[groups.length - 2];
+  return {key: x.slice(g.index), word: w};
+}
+function poemScore(n){
+  if (n.kind === "tree" || n.items.length) return null;
+  const lines = n.body.split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length < 4) return null;
+  if (lines.filter(l => /^([-*•]|\d+[.)]|#{1,3} )/.test(l) || /https?:\/\//.test(l)).length > lines.length * .25) return null;
+  const avg = lines.reduce((a, l) => a + l.length, 0) / lines.length;
+  if (avg > 70) return null;
+  const keys = lines.map(rhymeKey), hit = new Set(), pairs = [];
+  for (let i = 0; i < keys.length; i++) for (let j = i + 1; j <= Math.min(i + 3, keys.length - 1); j++) {
+    const a = keys[i], b = keys[j];
+    if (a && b && a.key === b.key && a.word !== b.word && a.key.length >= 2) { if (!hit.has(i) || !hit.has(j)) pairs.push([a.word, b.word]); hit.add(i); hit.add(j); }
+  }
+  const ratio = hit.size / lines.length;
+  if (pairs.length >= 2 && ratio >= .45) return {sure:true, pairs};
+  if (lines.length >= 6 && avg <= 45 && lines.filter(l => /[:;]$/.test(l)).length <= 1 && (pairs.length >= 1 || lines.filter(l => /^[A-ZÄÖÜ]/.test(l)).length > lines.length * .7)) return {sure:false, pairs};
+  return null;
+}
+function poemDialog(){
+  const cands = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !n.tags.includes("lyrik")).map(n => ({n, r:poemScore(n)})).filter(x => x.r)
+    .sort((a, b) => (b.r.sure - a.r.sure) || (b.r.pairs.length - a.r.pairs.length));
+  const has = [...S.notes.values()].filter(n => !n._deleted && n.tags.includes("lyrik")).length;
+  if (!cands.length) return dialog(`<h2>Gedichte finden</h2><p>Keine weiteren Kandidaten gefunden.${has ? ` ${has} ${has === 1 ? "Notiz hat" : "Notizen haben"} schon #lyrik.` : ""}</p><div class="row"><button class="btn primary" data-x>Schließen</button></div>`, d => d.querySelector("[data-x]").onclick = closeDialog);
+  const row = ({n, r}) => `<label class="prow"><input type="checkbox" data-id="${esc(n.id)}" ${r.sure ? "checked" : ""}><span><strong>${esc(n.title || n.body.trim().split("\n")[0].slice(0, 60))}</strong><small>${r.pairs.length ? esc(r.pairs.slice(0, 3).map(p => p.join(" / ")).join(" · ")) : esc(n.body.trim().split("\n").slice(0, 2).join(" / ").slice(0, 80))}</small></span></label>`;
+  const sure = cands.filter(c => c.r.sure), maybe = cands.filter(c => !c.r.sure);
+  dialog(`<h2>Gedichte finden</h2><p>Gefunden nach Reimen und Zeilenform, ohne KI. Entferne die Häkchen bei allem, was kein Gedicht ist.${has ? ` ${has} haben schon #lyrik.` : ""}</p>
+    <div class="poemlist">${sure.length ? `<h3>Gereimt · ${sure.length}</h3>${sure.map(row).join("")}` : ""}${maybe.length ? `<h3>Vielleicht, sieht aus wie ein Gedicht · ${maybe.length}</h3>${maybe.map(row).join("")}` : ""}</div>
+    <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok></button></div>`, d => {
+    const ok = d.querySelector("[data-ok]"), upd = () => { const k = d.querySelectorAll(".prow input:checked").length; ok.textContent = `#lyrik vergeben (${k})`; ok.disabled = !k; };
+    d.querySelectorAll(".prow input").forEach(c => c.onchange = upd); upd();
+    d.querySelector("[data-x]").onclick = closeDialog;
+    ok.onclick = () => {
+      const l = [...d.querySelectorAll(".prow input:checked")].map(c => S.notes.get(c.dataset.id)).filter(Boolean);
+      l.forEach(n => { n.tags = [...n.tags, "lyrik"]; touch(n, {reclassify:false}); });
+      closeDialog(); render();
+      toast(`#lyrik bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"} vergeben.`, "Rückgängig", () => { l.forEach(n => { n.tags = n.tags.filter(t => t !== "lyrik"); touch(n, {reclassify:false}); }); render(); });
+    };
+  });
+}
 function dialog(html, onBind){
   closeDialog();
   const scrim = document.createElement("div"); scrim.className = "scrim"; scrim.id = "dscrim"; scrim.onclick = closeDialog;
@@ -1808,6 +1866,7 @@ function openSettings(){
     <div class="row" style="justify-content:flex-start;margin:0 0 6px">
       <button class="btn" id="sImport">Von Claude übernehmen</button>
       <button class="btn" id="sFolder">Ordner importieren</button>
+      <button class="btn" id="sPoems">Gedichte finden</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
     </section><section class="ssec" id="st-look"><h3>Aussehen</h3>
@@ -1854,6 +1913,7 @@ function openSettings(){
     d.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { S.settings[b.dataset.sw] = b.dataset.act; S.settings._dirty = true; persist(); scheduleSync(800); d.querySelectorAll(`[data-sw="${b.dataset.sw}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
+    d.querySelector("#sPoems").onclick = () => { closeDialog(); poemDialog(); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
     const ss = d.querySelector("#sSync"); if (ss) ss.onclick = () => { sync(); closeDialog(); };
     d.querySelector("#sConn").onclick = () => saveConnection("s");
