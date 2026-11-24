@@ -231,6 +231,9 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .pinchev svg{transition:transform .2s ease}
 .pinhead:hover .pinchev{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .list.dim .note{opacity:.62}
+#upbtn{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));z-index:25;width:42px;height:42px;margin-left:-21px;border-radius:50%;display:grid;place-items:center;background:var(--sheet);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.14);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s}
+#upbtn.on{opacity:1;transform:none;pointer-events:auto}
+@media (prefers-reduced-motion:reduce){#upbtn{transition:none}}
 .morerow{display:flex;gap:8px;flex-wrap:wrap}.morerow .more{flex:1}
 .poemlist{max-height:52vh;overflow:auto;margin:4px -4px 0;padding:0 4px}
 .poemlist h3{font-size:13px;color:var(--muted);font-weight:600;margin:14px 0 4px}
@@ -359,7 +362,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.14";
+const APP_VERSION = "1.15";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1684,24 +1687,42 @@ function poemScore(n){
   if (lines.length >= 6 && avg <= 45 && lines.filter(l => /[:;]$/.test(l)).length <= 1 && (pairs.length >= 1 || lines.filter(l => /^[A-ZÄÖÜ]/.test(l)).length > lines.length * .7)) return {sure:false, pairs};
   return null;
 }
-function poemDialog(){
-  const cands = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !n.tags.includes("lyrik")).map(n => ({n, r:poemScore(n)})).filter(x => x.r)
-    .sort((a, b) => (b.r.sure - a.r.sure) || (b.r.pairs.length - a.r.pairs.length));
-  const has = [...S.notes.values()].filter(n => !n._deleted && n.tags.includes("lyrik")).length;
-  if (!cands.length) return dialog(`<h2>Gedichte finden</h2><p>Keine weiteren Kandidaten gefunden.${has ? ` ${has} ${has === 1 ? "Notiz hat" : "Notizen haben"} schon #lyrik.` : ""}</p><div class="row"><button class="btn primary" data-x>Schließen</button></div>`, d => d.querySelector("[data-x]").onclick = closeDialog);
-  const row = ({n, r}) => `<label class="prow"><input type="checkbox" data-id="${esc(n.id)}" ${r.sure ? "checked" : ""}><span><strong>${esc(n.title || n.body.trim().split("\n")[0].slice(0, 60))}</strong><small>${r.pairs.length ? esc(r.pairs.slice(0, 3).map(p => p.join(" / ")).join(" · ")) : esc(n.body.trim().split("\n").slice(0, 2).join(" / ").slice(0, 80))}</small></span></label>`;
+// Quotes: alle Varianten von Anführungszeichen
+const QUOTE_RE = /(„[^“”"\n]{8,}[“”"]|“[^”“\n]{8,}[”“]|"[^"\n]{8,}"|»[^«\n]{8,}«|«[^»\n]{8,}»|‚[^‘’\n]{8,}[‘’]|‘[^’\n]{8,}’|'[^'\n]{12,}')/g;
+function quoteScore(n){
+  if (n.kind === "tree") return null;
+  const text = (n.title + "\n" + n.body + "\n" + n.items.map(i => i.t).join("\n")).trim(); if (!text) return null;
+  const qs = (text.match(QUOTE_RE) || []).filter(q => q.trim().split(/\s+/).length >= 3);
+  if (!qs.length) return null;
+  const qLen = qs.reduce((a, q) => a + q.length, 0), attrib = /(^|\n)\s*([-–—]|\(|von )\s*\p{Lu}[\p{L}.\- ]{1,40}\)?\s*$/mu.test(text) || /[“”"»«’‘]\s*[-–—,]\s*\p{Lu}\p{L}+/u.test(text);
+  const sure = qLen / text.length >= .45 || attrib;
+  return {sure, pairs:[], sample: qs[0].length > 90 ? qs[0].slice(0, 88) + "…" : qs[0]};
+}
+const FINDERS = {
+  lyrik: {title:"Gedichte finden", intro:"Gefunden nach Reimen und Zeilenform, ohne KI.", sure:"Gereimt", maybe:"Vielleicht, sieht aus wie ein Gedicht", score:poemScore,
+    sub:(n, r) => r.pairs.length ? r.pairs.slice(0, 3).map(p => p.join(" / ")).join(" · ") : n.body.trim().split("\n").slice(0, 2).join(" / ").slice(0, 80)},
+  zitat: {title:"Zitate finden", intro:"Gefunden über Anführungszeichen in allen Schreibweisen („…“, \"…\", »…«, ‚…‘), ohne KI.", sure:"Wahrscheinlich ein Zitat", maybe:"Enthält etwas in Anführungszeichen", score:quoteScore,
+    sub:(n, r) => r.sample}
+};
+function findDialog(tag){
+  const F = FINDERS[tag];
+  const cands = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !n.tags.includes(tag)).map(n => ({n, r:F.score(n)})).filter(x => x.r)
+    .sort((a, b) => (b.r.sure - a.r.sure) || (b.r.pairs.length - a.r.pairs.length) || (b.n.created > a.n.created ? 1 : -1));
+  const has = [...S.notes.values()].filter(n => !n._deleted && n.tags.includes(tag)).length;
+  if (!cands.length) return dialog(`<h2>${F.title}</h2><p>Keine weiteren Kandidaten gefunden.${has ? ` ${has} ${has === 1 ? "Notiz hat" : "Notizen haben"} schon #${tag}.` : ""}</p><div class="row"><button class="btn primary" data-x>Schließen</button></div>`, d => d.querySelector("[data-x]").onclick = closeDialog);
+  const row = ({n, r}) => `<label class="prow"><input type="checkbox" data-id="${esc(n.id)}" ${r.sure ? "checked" : ""}><span><strong>${esc(n.title || n.body.trim().split("\n")[0].slice(0, 60))}</strong><small>${esc(F.sub(n, r))}</small></span></label>`;
   const sure = cands.filter(c => c.r.sure), maybe = cands.filter(c => !c.r.sure);
-  dialog(`<h2>Gedichte finden</h2><p>Gefunden nach Reimen und Zeilenform, ohne KI. Entferne die Häkchen bei allem, was kein Gedicht ist.${has ? ` ${has} haben schon #lyrik.` : ""}</p>
-    <div class="poemlist">${sure.length ? `<h3>Gereimt · ${sure.length}</h3>${sure.map(row).join("")}` : ""}${maybe.length ? `<h3>Vielleicht, sieht aus wie ein Gedicht · ${maybe.length}</h3>${maybe.map(row).join("")}` : ""}</div>
+  dialog(`<h2>${F.title}</h2><p>${esc(F.intro)} Entferne die Häkchen bei allem, was nicht passt.${has ? ` ${has} haben schon #${tag}.` : ""}</p>
+    <div class="poemlist">${sure.length ? `<h3>${F.sure} · ${sure.length}</h3>${sure.map(row).join("")}` : ""}${maybe.length ? `<h3>${F.maybe} · ${maybe.length}</h3>${maybe.map(row).join("")}` : ""}</div>
     <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok></button></div>`, d => {
-    const ok = d.querySelector("[data-ok]"), upd = () => { const k = d.querySelectorAll(".prow input:checked").length; ok.textContent = `#lyrik vergeben (${k})`; ok.disabled = !k; };
+    const ok = d.querySelector("[data-ok]"), upd = () => { const k = d.querySelectorAll(".prow input:checked").length; ok.textContent = `#${tag} vergeben (${k})`; ok.disabled = !k; };
     d.querySelectorAll(".prow input").forEach(c => c.onchange = upd); upd();
     d.querySelector("[data-x]").onclick = closeDialog;
     ok.onclick = () => {
       const l = [...d.querySelectorAll(".prow input:checked")].map(c => S.notes.get(c.dataset.id)).filter(Boolean);
-      l.forEach(n => { n.tags = [...n.tags, "lyrik"]; touch(n, {reclassify:false}); });
+      l.forEach(n => { n.tags = [...n.tags, tag]; touch(n, {reclassify:false}); });
       closeDialog(); render();
-      toast(`#lyrik bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"} vergeben.`, "Rückgängig", () => { l.forEach(n => { n.tags = n.tags.filter(t => t !== "lyrik"); touch(n, {reclassify:false}); }); render(); });
+      toast(`#${tag} bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"} vergeben.`, "Rückgängig", () => { l.forEach(n => { n.tags = n.tags.filter(t => t !== tag); touch(n, {reclassify:false}); }); render(); });
     };
   });
 }
@@ -1867,6 +1888,7 @@ function openSettings(){
       <button class="btn" id="sImport">Von Claude übernehmen</button>
       <button class="btn" id="sFolder">Ordner importieren</button>
       <button class="btn" id="sPoems">Gedichte finden</button>
+      <button class="btn" id="sQuotes">Zitate finden</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
     </section><section class="ssec" id="st-look"><h3>Aussehen</h3>
@@ -1913,7 +1935,8 @@ function openSettings(){
     d.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { S.settings[b.dataset.sw] = b.dataset.act; S.settings._dirty = true; persist(); scheduleSync(800); d.querySelectorAll(`[data-sw="${b.dataset.sw}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
-    d.querySelector("#sPoems").onclick = () => { closeDialog(); poemDialog(); };
+    d.querySelector("#sPoems").onclick = () => { closeDialog(); findDialog("lyrik"); };
+    d.querySelector("#sQuotes").onclick = () => { closeDialog(); findDialog("zitat"); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
     const ss = d.querySelector("#sSync"); if (ss) ss.onclick = () => { sync(); closeDialog(); };
     d.querySelector("#sConn").onclick = () => saveConnection("s");
@@ -1949,6 +1972,18 @@ setInterval(() => { if (document.visibilityState === "visible") scheduleSync(0);
 document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e.clipboardData?.files || [])]; const f = fs.filter(x => x.type.startsWith("image/")), a = fs.filter(x => x.type.startsWith("audio/")); if (f.length || a.length) { e.preventDefault(); if (f.length) addImages(f); if (a.length) addAudioFiles(a); } });
 
 /* ---------- Start ---------- */
+// Nach oben: erscheint, wenn man in einer langen Liste wieder nach oben scrollt
+{ let lastY = 0, up = 0;
+  const btn = document.createElement("button"); btn.id = "upbtn"; btn.setAttribute("aria-label", "Nach oben");
+  btn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>`;
+  btn.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); btn.classList.remove("on"); up = 0; };
+  document.addEventListener("DOMContentLoaded", () => document.body.appendChild(btn)); if (document.body) document.body.appendChild(btn);
+  addEventListener("scroll", () => {
+    const y = scrollY, dy = y - lastY; lastY = y;
+    if (dy < 0) up -= dy; else if (dy > 4) up = 0;
+    btn.classList.toggle("on", y > 900 && up > 250 && !S.open && !S.sel && !$("#dlg"));
+  }, {passive:true});
+}
 (async function init(){
   try {
     const [notes, cfg, settings, queue, welcomed] = await Promise.all([idb.get("notes"), idb.get("cfg"), idb.get("settings"), idb.get("queue"), idb.get("welcomed")]);
