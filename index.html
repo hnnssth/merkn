@@ -234,6 +234,16 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .jumpbtn{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));z-index:25;width:42px;height:42px;margin-left:-21px;border-radius:50%;display:grid;place-items:center;background:var(--sheet);color:var(--ink);border:1px solid var(--line);box-shadow:0 4px 16px rgba(0,0,0,.14);opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity .2s,transform .2s}
 .jumpbtn.on{opacity:1;transform:none;pointer-events:auto}
 @media (prefers-reduced-motion:reduce){.jumpbtn{transition:none}}
+.rediscover{display:flex;align-items:stretch;gap:6px;margin:14px 0 4px}
+.rdnote{flex:1;min-width:0;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.rdnote small{display:block;color:var(--muted);font-size:12px}
+.rdnote strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rdbtn{padding:8px 12px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:14px;cursor:pointer;white-space:nowrap}
+.rediscover:not(:has(.rdnote)) .rdbtn:first-child{flex:none}
+.rdx{padding:8px;display:grid;place-items:center}.rdx svg{width:16px;height:16px}
+.taglist{display:flex;flex-direction:column;max-height:320px;overflow:auto;border-top:1px solid var(--line)}
+.tagrow{display:flex;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;text-align:left}
+.tagrow .tc{color:var(--faint);font-variant-numeric:tabular-nums}
 .morerow{display:flex;gap:8px;flex-wrap:wrap}.morerow .more{flex:1}
 .poemlist{max-height:52vh;overflow:auto;margin:4px -4px 0;padding:0 4px}
 .poemlist h3{font-size:13px;color:var(--muted);font-weight:600;margin:14px 0 4px}
@@ -370,7 +380,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.16";
+const APP_VERSION = "1.17";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1156,7 +1166,7 @@ function render(){
     </nav>
     ${`<div class="tags" role="group" aria-label="Filter"><button class="tag timechip" id="timeChip" aria-pressed="${timeFilterActive()}">${ICON.clock} ${esc(timeLabel())}</button>${tags.map(t => `<button class="tag${favTags().includes(t) ? " fav" : ""}" data-t="${esc(t)}" aria-pressed="${v.tag === t}" title="Lange drücken: als Favorit markieren">${favTags().includes(t) ? ICON.star : ""}#${esc(t)}</button>`).join("")}</div>`}
     ${searching ? `<p class="hits">${hits} ${hits === 1 ? "Treffer" : "Treffer"}${xArch.length || xTrash.length ? " inklusive Archiv und Papierkorb" : ""}</p>` : ""}
-    ${body}${extras}
+    ${rediscoverHTML()}${body}${extras}
     ${v.trash && list.length ? `<p class="hint" style="margin-top:18px">Gelöschte Notizen bleiben 30 Tage hier, dann werden sie endgültig entfernt. Öffnen, um sie wiederherzustellen.</p><button class="more" id="emptyTrash" style="color:var(--danger)">Papierkorb leeren</button>` : ""}
     ${!v.archive && !v.trash && !searching && (archCount || trashCount) ? `<p class="archivelinks">${archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}${trashCount ? `<a href="#" class="archivelink" id="toTrash">Papierkorb (${trashCount})</a>` : ""}</p>` : ""}
   </div>
@@ -1178,6 +1188,9 @@ function bindList(){
   const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
+  document.querySelectorAll("[data-rd]").forEach(b => b.onclick = () => openNote(S.notes.get(b.dataset.rd)));
+  const rr = $("#rdRandom"); if (rr) rr.onclick = () => { const l = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !isEmpty(n)); if (l.length) openNote(l[Math.floor(Math.random() * l.length)]); };
+  const rh = $("#rdHide"); if (rh) rh.onclick = () => { try { localStorage.setItem("merkn-rd-hide", localDay(new Date())); } catch {} render(); };
   const ma = $("#moreAll"); if (ma) ma.onclick = () => { S.view.limit = Infinity; render(); };
   document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; S.view.limit = 150; render(); });
   document.querySelectorAll(".tag[data-t]").forEach(b => {
@@ -1617,10 +1630,12 @@ function moreMenu(anchor){
   popover(anchor, `<button data-act="claude" role="menuitem">An Claude übergeben</button>
     <button data-act="replace" role="menuitem">Inhalt ersetzen (von Claude)</button>
     <button data-act="tree" role="menuitem">${n.kind === "tree" ? "Als normale Notiz anzeigen" : "Als Baum anzeigen"}</button>
+    <button data-act="share" role="menuitem">Teilen</button>
     <button data-act="arch" role="menuitem">${n.archived ? "Aus Archiv holen" : "Archivieren"}</button>
     ${S.cfg && n._sha ? `<button data-act="hist" role="menuitem">Verlauf</button>` : ""}
     <hr>${n.trashed ? `<button data-act="restore" role="menuitem">Wiederherstellen</button><button data-act="purge" class="danger" role="menuitem">Endgültig löschen</button>` : `<button data-act="del" class="danger" role="menuitem">Löschen</button>`}`, p => {
     p.querySelector('[data-act="claude"]').onclick = () => { closePop(); copyForClaude([n]); };
+    p.querySelector('[data-act="share"]').onclick = () => { closePop(); const t = noteText(n); if (!t) return toast("Die Notiz ist leer."); shareText(n.title || "Notiz", t); };
     const hb = p.querySelector('[data-act="hist"]'); if (hb) hb.onclick = () => { closePop(); historyDialog(n); };
     p.querySelector('[data-act="replace"]').onclick = () => { closePop(); replaceDialog(n); };
     p.querySelector('[data-act="tree"]').onclick = () => { closePop(); n.kind = n.kind === "tree" ? "" : "tree"; S.treeEdit = false; treeOpen.clear(); if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i)); n._edited = true; edChanged(); renderEditor(); };
@@ -1712,6 +1727,83 @@ const FINDERS = {
   zitat: {title:"Zitate finden", intro:"Gefunden über Anführungszeichen in allen Schreibweisen („…“, \"…\", »…«, ‚…‘), ohne KI.", sure:"Wahrscheinlich ein Zitat", maybe:"Enthält etwas in Anführungszeichen", score:quoteScore,
     sub:(n, r) => r.sample}
 };
+// Wiederentdecken: „Heute vor … Jahren“ und eine zufällige Notiz
+function rediscoverHTML(){
+  const v = S.view; if (v.q || v.archive || v.trash || v.tag || v.area !== "alle" || timeFilterActive() || S.sel) return "";
+  const today = localDay(new Date()); let hidden = ""; try { hidden = localStorage.getItem("merkn-rd-hide") || ""; } catch {}
+  if (hidden === today) return "";
+  const md = today.slice(5), y = +today.slice(0, 4);
+  const old = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !isEmpty(n) && localDay(n.created).slice(5) === md && +localDay(n.created).slice(0, 4) < y);
+  const pick = old.length ? old[(new Date().getDate()) % old.length] : null;
+  const yrs = pick ? y - +localDay(pick.created).slice(0, 4) : 0;
+  return `<div class="rediscover">${pick ? `<button class="rdnote" data-rd="${esc(pick.id)}"><small>Heute vor ${yrs} ${yrs === 1 ? "Jahr" : "Jahren"}${old.length > 1 ? ` · ${old.length} Notizen` : ""}</small><strong>${esc(pick.title || plainMd(pick.body).trim().split("\n")[0].slice(0, 80) || "Ohne Titel")}</strong></button>` : ""}
+    <button class="rdbtn" id="rdRandom">Zufällige Notiz</button><button class="rdbtn rdx" id="rdHide" aria-label="Für heute ausblenden" title="Für heute ausblenden">${ICON.x}</button></div>`;
+}
+function tagCounts(){ const m = new Map(); for (const n of S.notes.values()) if (!n._deleted && !n.trashed) n.tags.forEach(t => m.set(t, (m.get(t) || 0) + 1)); return [...m].sort((a, b) => a[0].localeCompare(b[0], "de")); }
+function renameTag(from, to){
+  const re = new RegExp("(^|[\\s(])#" + from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=$|[^\\p{L}\\p{N}_-])", "giu");
+  const l = [...S.notes.values()].filter(n => !n._deleted && n.tags.includes(from)), before = l.map(n => ({n, tags:n.tags, title:n.title, body:n.body, items:n.items.map(i => ({...i}))}));
+  for (const n of l) {
+    n.tags = [...new Set(n.tags.map(t => t === from ? to : t))];
+    n.title = n.title.replace(re, "$1#" + to); n.body = n.body.replace(re, "$1#" + to); n.items = n.items.map(i => ({...i, t:i.t.replace(re, "$1#" + to)}));
+    touch(n, {reclassify:false});
+  }
+  const fx = a => a ? [...new Set(a.map(t => t === from ? to : t))] : a, prevSet = {fav:S.settings.favTags, tab:S.settings.tabTags};
+  S.settings.favTags = fx(S.settings.favTags); S.settings.tabTags = fx(S.settings.tabTags); S.settings._dirty = true;
+  if (S.view.tag === from) S.view.tag = to; if (S.view.area === "tag:" + from) S.view.area = "tag:" + to;
+  persist(); scheduleSync(); render();
+  toast(`#${from} → #${to} bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"}.`, "Rückgängig", () => {
+    before.forEach(b => { Object.assign(b.n, {tags:b.tags, title:b.title, body:b.body, items:b.items}); touch(b.n, {reclassify:false}); });
+    S.settings.favTags = prevSet.fav; S.settings.tabTags = prevSet.tab; S.settings._dirty = true; persist(); scheduleSync(); render();
+  });
+}
+function tagDialog(t){
+  const c = tagNotes(t).length;
+  dialog(`<h2>#${esc(t)}</h2><p>${c} ${c === 1 ? "Notiz" : "Notizen"}.</p>
+    <label class="f" for="tgNew">Umbenennen oder zusammenführen</label>
+    <input class="inp" id="tgNew" list="taglist" value="${esc(t)}" autocomplete="off" enterkeyhint="done">
+    <p class="hint" id="tgHint">Gibst du einen Tag ein, den es schon gibt, werden beide zusammengeführt. Auch #${esc(t)} im Text wird angepasst.</p>
+    <div class="row" style="justify-content:flex-start"><button class="btn" data-share>Als Sammlung teilen</button><button class="btn" data-print>Drucken</button></div>
+    <div class="row tbtns"><button class="btn" data-x>Schließen</button><button class="btn primary" data-ok disabled>Umbenennen</button></div>`, d => {
+    const inp = d.querySelector("#tgNew"), ok = d.querySelector("[data-ok]");
+    const upd = () => { const v = tagNorm(inp.value); ok.disabled = !v || v === t; ok.textContent = v && v !== t && allTags().includes(v) ? `Mit #${v} zusammenführen` : "Umbenennen"; };
+    inp.oninput = upd; upd();
+    inp.onkeydown = e => { if (e.key === "Enter" && !ok.disabled) ok.click(); };
+    ok.onclick = () => { const v = tagNorm(inp.value); closeDialog(); renameTag(t, v); };
+    d.querySelector("[data-x]").onclick = closeDialog;
+    d.querySelector("[data-share]").onclick = () => { const txt = collectionText(t); if (!txt) return toast("Keine Notizen mit diesem Tag."); shareText(`#${t}`, txt); };
+    d.querySelector("[data-print]").onclick = () => printCollection(t);
+  });
+}
+function dupKey(n){ return fold([n.title, n.body, n.items.map(i => i.t).join(" ")].join(" ")).replace(/[^a-z0-9]+/g, " ").trim(); }
+function dupDialog(){
+  const notes = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !isEmpty(n));
+  const exact = new Map();
+  for (const n of notes) { const k = dupKey(n) + "|" + n.images.length + "|" + (n.audio||[]).length; if (k.length < 4) continue; (exact.get(k) || exact.set(k, []).get(k)).push(n); }
+  const groups = [...exact.values()].filter(g => g.length > 1).map(g => ({g, same:true}));
+  const used = new Set(groups.flatMap(x => x.g.map(n => n.id))), near = new Map();
+  for (const n of notes) { if (used.has(n.id)) continue; const k = dupKey(n); if (k.length < 40) continue; const p = k.slice(0, 60); (near.get(p) || near.set(p, []).get(p)).push({n, len:k.length}); }
+  for (const g of near.values()) if (g.length > 1) { const L = Math.max(...g.map(x => x.len)), ok = g.filter(x => x.len >= L * .8); if (ok.length > 1) groups.push({g:ok.map(x => x.n), same:false}); }
+  if (!groups.length) return dialog(`<h2>Doppelte finden</h2><p>Keine doppelten Notizen gefunden.</p><div class="row"><button class="btn primary" data-x>Schließen</button></div>`, d => d.querySelector("[data-x]").onclick = closeDialog);
+  // Pro Gruppe bleibt die zuletzt bearbeitete; die anderen sind zum Löschen vorgemerkt
+  groups.forEach(x => x.g.sort((a, b) => (b.updated > a.updated ? 1 : -1) || (b.tags.length - a.tags.length)));
+  groups.sort((a, b) => b.same - a.same);
+  const when = n => new Date(n.created).toLocaleDateString("de-DE", {day:"numeric", month:"short", year:"numeric"});
+  const row = (n, keep, same) => `<label class="prow"><input type="checkbox" data-id="${esc(n.id)}" ${!keep && same ? "checked" : ""}><span><strong>${esc(n.title || n.body.trim().split("\n")[0].slice(0, 60) || "Ohne Titel")}</strong><small>${keep ? "Neueste · " : ""}${when(n)}${n.tags.length ? " · #" + n.tags.map(esc).join(" #") : ""}${n.archived ? " · im Archiv" : ""}</small></span></label>`;
+  dialog(`<h2>Doppelte finden</h2><p>${groups.length} ${groups.length === 1 ? "Gruppe" : "Gruppen"}. Pro Gruppe bleibt die zuletzt bearbeitete Notiz, die anderen sind bei gleichem Inhalt zum Löschen vorgemerkt. Bei „fast gleich“ entscheidest du selbst.</p>
+    <div class="poemlist">${groups.map((x, i) => `<h3>${x.same ? "Gleicher Inhalt" : "Fast gleich"} · ${x.g.length}</h3>${x.g.map((n, j) => row(n, j === 0, x.same)).join("")}`).join("")}</div>
+    <div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn danger" data-ok></button></div>`, d => {
+    const ok = d.querySelector("[data-ok]"), upd = () => { const k = d.querySelectorAll(".prow input:checked").length; ok.textContent = `In den Papierkorb (${k})`; ok.disabled = !k; };
+    d.querySelectorAll(".prow input").forEach(c => c.onchange = upd); upd();
+    d.querySelector("[data-x]").onclick = closeDialog;
+    ok.onclick = () => {
+      const l = [...d.querySelectorAll(".prow input:checked")].map(c => S.notes.get(c.dataset.id)).filter(Boolean), at = nowISO();
+      l.forEach(n => { n.trashed = true; n.trashedAt = at; touch(n, {reclassify:false}); });
+      closeDialog(); render();
+      toast(`${l.length} in den Papierkorb gelegt.`, "Rückgängig", () => { l.forEach(n => { n.trashed = false; n.trashedAt = null; touch(n, {reclassify:false}); }); render(); });
+    };
+  });
+}
 function findDialog(tag){
   const F = FINDERS[tag];
   const cands = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !n.tags.includes(tag)).map(n => ({n, r:F.score(n)})).filter(x => x.r)
@@ -1768,6 +1860,27 @@ function openViewer(path){
 }
 
 /* ---------- Übergabe an Claude ---------- */
+// Notiz als lesbarer Text (zum Teilen)
+function noteText(n){
+  const parts = [];
+  if (n.title.trim()) parts.push(n.title.trim());
+  if (n.body.trim()) parts.push(plainMd(n.body.trim()));
+  if (n.items.length) parts.push(n.items.map(i => (i.d ? "☑ " : "☐ ") + i.t).join("\n"));
+  return parts.join("\n\n");
+}
+async function shareText(title, text){
+  if (navigator.share) { try { await navigator.share({title, text}); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(text); toast("Kopiert. Du kannst es jetzt einfügen."); }
+  catch { dialog(`<h2>${esc(title)}</h2><p>Text markieren und kopieren.</p><textarea class="inp" style="min-height:240px" readonly>${esc(text)}</textarea><div class="row"><button class="btn primary" data-x>Fertig</button></div>`, d => { d.querySelector("textarea").select(); d.querySelector("[data-x]").onclick = closeDialog; }); }
+}
+const tagNotes = t => [...S.notes.values()].filter(n => !n._deleted && !n.trashed && n.tags.includes(t)).sort((a, b) => a.created < b.created ? -1 : 1);
+function collectionText(t){ return tagNotes(t).map(noteText).filter(Boolean).join("\n\n— — —\n\n"); }
+function printCollection(t){
+  const notes = tagNotes(t);
+  const w = window.open("", "_blank"); if (!w) return toast("Druckfenster wurde blockiert.");
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>#${esc(t)}</title><style>body{font:16px/1.55 Georgia,serif;max-width:36em;margin:2em auto;padding:0 1em;color:#111}h1{font:600 14px system-ui;color:#666;margin-bottom:2em}article{break-inside:avoid;margin:0 0 2.2em;padding-bottom:1.6em;border-bottom:1px solid #ddd}h2{font-size:18px;margin:0 0 .5em}p{white-space:pre-wrap;margin:0}</style><h1>#${esc(t)} · ${notes.length} ${notes.length === 1 ? "Notiz" : "Notizen"}</h1>${notes.map(n => `<article>${n.title.trim() ? `<h2>${esc(n.title)}</h2>` : ""}<p>${esc(plainMd([n.body.trim(), n.items.map(i => (i.d ? "☑ " : "☐ ") + i.t).join("\n")].filter(Boolean).join("\n\n")))}</p></article>`).join("")}`);
+  w.document.close(); setTimeout(() => w.print(), 300);
+}
 async function copyForClaude(notes){
   const text = claudeBundle(notes);
   try { await navigator.clipboard.writeText(text); toast(notes.length === 1 ? "Kopiert. In Claude einfügen." : `${notes.length} Notizen kopiert. In Claude einfügen.`); }
@@ -1887,7 +2000,7 @@ function bindWelcome(){
 }
 function openSettings(){
   const kw = S.settings.keywords;
-  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["swipe","Wischen"],["sort","Einsortieren"],["gh","GitHub"],["hilfe","Hilfe"]];
+  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["tagsec","Tags"],["swipe","Wischen"],["sort","Einsortieren"],["gh","GitHub"],["hilfe","Hilfe"]];
   dialog(`<div class="snav"><div class="snavtop"><h2>Einstellungen</h2><button class="btn primary" id="sDone">Fertig</button></div>
     <nav class="schips" aria-label="Abschnitte">${SECS.map(([k,l], i) => `<button class="tag" data-sec="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</nav></div>
     <section class="ssec" id="st-allg"><h3>Allgemein</h3>
@@ -1897,6 +2010,7 @@ function openSettings(){
       <button class="btn" id="sFolder">Ordner importieren</button>
       <button class="btn" id="sPoems">Gedichte finden</button>
       <button class="btn" id="sQuotes">Zitate finden</button>
+      <button class="btn" id="sDups">Doppelte finden</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
     </section><section class="ssec" id="st-look"><h3>Aussehen</h3>
@@ -1908,6 +2022,9 @@ function openSettings(){
     </section><section class="ssec" id="st-fav"><h3>Favoriten-Tags</h3>
     <p>Stehen immer vorne in der Filterzeile und lassen sich in jeder Notiz mit einem Tipp setzen. Auch per langem Druck auf einen Tag.</p>
     <input class="inp" id="favIn" value="${esc(favTags().map(t => "#"+t).join(" "))}" placeholder="#apps #idee" autocapitalize="off" autocomplete="off">
+    </section><section class="ssec" id="st-tagsec"><h3>Alle Tags</h3>
+    <p>Antippen zum Umbenennen, Zusammenführen oder als Sammlung teilen.</p>
+    <div class="taglist">${tagCounts().map(([t, c]) => `<button class="tagrow" data-tagrow="${esc(t)}"><span>#${esc(t)}</span><span class="tc">${c}</span></button>`).join("") || `<p class="hint">Noch keine Tags.</p>`}</div>
     </section><section class="ssec" id="st-swipe"><h3>Wischen in der Liste</h3>
     <p>Was passiert, wenn du eine Notiz zur Seite wischst.</p>
     ${[["swipeR","Nach rechts"],["swipeL","Nach links"]].map(([k,l]) => `<label class="f">${l}</label><div class="chips">${Object.entries(SWIPE).map(([a,v]) => `<button class="tag" data-sw="${k}" data-act="${a}" aria-pressed="${(S.settings[k] || "none") === a}">${v.label}</button>`).join("")}</div>`).join("")}
@@ -1923,7 +2040,7 @@ function openSettings(){
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
     </div>
     </section><section class="ssec" id="st-hilfe"><h3>Hilfe</h3>
-    <details class="help"><summary>Notizen anlegen und bearbeiten</summary><dl><dt>+ unten rechts</dt><dd>Neue Notiz. Am Rechner geht auch die Taste N.</dd><dt>Titel und Text</dt><dd>Wird beim Tippen gespeichert. Mit dem Pfeil oben links oder der Zurück-Geste schließt du die Notiz. Leere Notizen verschwinden von selbst.</dd><dt>Liste</dt><dd>Macht aus dem Text eine Checkliste. Abgehakte Punkte rutschen nach unten und lassen sich einklappen.</dd><dt>Bild, Audio, Diktat</dt><dd>Über die Leiste unten in der Notiz. Diktat schreibt mit, was du sprichst.</dd><dt>Anheften</dt><dd>Pinnadel oben in der Notiz. Angeheftete Notizen stehen oben in der Liste; der Bereich lässt sich mit dem Pfeil zuklappen.</dd><dt>Bereich</dt><dd>Der Knopf oben in der Notiz (Privat, Beruflich, Freelance). „auto“ heißt: Merkn sortiert selbst ein, nach den Wörtern unter Einstellungen → Einsortieren.</dd></dl></details><details class="help"><summary>Text gestalten</summary><dl><dt>**fett**</dt><dd>Zwei Sternchen davor und dahinter.</dd><dt># Überschrift</dt><dd>Eine Raute und ein Leerzeichen am Zeilenanfang, ## für kleiner.</dd><dt>- Punkt</dt><dd>Strich und Leerzeichen am Zeilenanfang ergibt eine Aufzählung; Einrücken geht mit Leerzeichen.</dd><dt>Links</dt><dd>Webadressen werden kurz angezeigt und sind antippbar.</dd><dt>[[Titel]]</dt><dd>Link auf eine andere Notiz mit diesem Titel. Grau heißt: gibt es noch nicht, antippen legt sie an.</dd><dt>Zum Bearbeiten</dt><dd>Gestalteten Text einmal antippen, dann siehst du ihn wieder als normalen Text.</dd></dl></details><details class="help"><summary>Tags</summary><dl><dt>#wort im Text</dt><dd>Wird automatisch zum Tag. Umlaute bleiben erhalten.</dd><dt>Tag-Chips unter der Suche</dt><dd>Antippen filtert. Lange drücken macht einen Tag zum Favoriten (Stern); Favoriten stehen vorn und werden in jeder Notiz vorgeschlagen.</dd><dt>Tabs</dt><dd>Unter Einstellungen → Tabs bekommt ein Tag einen eigenen Reiter neben den Bereichen, z. B. Software.</dd></dl></details><details class="help"><summary>Suchen und filtern</summary><dl><dt>Suche</dt><dd>Durchsucht Titel, Text, Listen und Tags, dazu Archiv und Papierkorb. Treffer sind gelb markiert.</dd><dt>#tag</dt><dd>Sucht nur in Tags. #bucher findet auch #bücher.</dd><dt>2019</dt><dd>Eine Jahreszahl filtert nach dem Jahr.</dd><dt>20-24 uhr</dt><dd>Filtert nach der Uhrzeit, zu der eine Notiz entstanden ist.</dd><dt>Zeit</dt><dd>Der Knopf unter der Suche: Jahr, Zeitraum, Uhrzeit und Sortierung.</dd></dl></details><details class="help"><summary>In der Liste</summary><dl><dt>Wischen</dt><dd>Nach rechts oder links wischen löst eine Aktion aus, standardmäßig Anheften und Archivieren. Einstellen unter Einstellungen → Wischen.</dd><dt>Lange drücken</dt><dd>Eintrag 2 Sekunden halten: Er wackelt, dann fragt Merkn, ob er gelöscht werden soll.</dd><dt>Mehrere auswählen</dt><dd>Häkchen-Symbol oben. Dann Notizen antippen und gemeinsam taggen, verschieben, archivieren oder löschen.</dd><dt>Pfeil nach oben / unten</dt><dd>Erscheint, wenn du in einer langen Liste mehrmals in eine Richtung scrollst.</dd><dt>Alle anzeigen</dt><dd>Ganz unten, wenn die Liste länger als 150 Einträge ist.</dd></dl></details><details class="help"><summary>Archiv, Papierkorb, Verlauf</summary><dl><dt>Archiv</dt><dd>Über das ⋯-Menü einer Notiz oder per Wischen. Der Link „Archiv“ steht unten in der Liste.</dd><dt>Löschen</dt><dd>Legt die Notiz in den Papierkorb, 5 Sekunden lang lässt sich das rückgängig machen. Nach 30 Tagen wird sie endgültig entfernt.</dd><dt>Papierkorb</dt><dd>Link unten in der Liste. Dort wiederherstellen, endgültig löschen oder leeren.</dd><dt>Verlauf</dt><dd>⋯-Menü einer Notiz. Zeigt frühere Fassungen von GitHub und holt eine zurück. Braucht Internet.</dd></dl></details><details class="help"><summary>Bäume</summary><dl><dt>Als Baum anzeigen</dt><dd>⋯-Menü einer Notiz. Eingerückte Zeilen mit „- Name“ werden zu einem aufklappbaren Baum.</dd><dt>Eigenschaften</dt><dd>Unter einem Eintrag z. B. „version: 1.0“, „status: Fertig“, „info: …“, „link: …“, „seit: …“, „stand: …“, „bild: …“.</dd></dl></details><details class="help"><summary>Werkzeuge</summary><dl><dt>Gedichte finden</dt><dd>Einstellungen → Allgemein. Sucht gereimte Notizen und vergibt nach deiner Prüfung #lyrik.</dd><dt>Zitate finden</dt><dd>Einstellungen → Allgemein. Sucht Notizen mit Anführungszeichen und vergibt nach deiner Prüfung #zitat.</dd><dt>An Claude übergeben</dt><dd>Pfeil-Symbol oben kopiert alle Notizen der aktuellen Ansicht; im ⋯-Menü einer Notiz nur diese.</dd><dt>Von Claude übernehmen</dt><dd>Einstellungen → Allgemein. Fügt ein, was Claude geschrieben hat. „Inhalt ersetzen“ im ⋯-Menü ersetzt eine Notiz.</dd><dt>Ordner importieren</dt><dd>Einstellungen → Allgemein. Liest einen Ordner mit Notiz-Dateien ein, z. B. aus Google Keep.</dd></dl></details><details class="help"><summary>Sync und Tastatur</summary><dl><dt>Punkt oben</dt><dd>Grün: alles synchron. Orange: Änderungen warten. Rot: Fehler, antippen für Details. Grau: nicht mit GitHub verbunden. Antippen synchronisiert sofort.</dd><dt>GitHub</dt><dd>Notizen liegen in deinem privaten Repo. Der Schlüssel bleibt nur auf diesem Gerät.</dd><dt>⌘K / Strg+K</dt><dd>Springt in die Suche.</dd><dt>N</dt><dd>Neue Notiz.</dd><dt>Esc</dt><dd>Schließt die offene Notiz.</dd></dl></details>
+    <details class="help"><summary>Notizen anlegen und bearbeiten</summary><dl><dt>+ unten rechts</dt><dd>Neue Notiz. Am Rechner geht auch die Taste N.</dd><dt>Titel und Text</dt><dd>Wird beim Tippen gespeichert. Mit dem Pfeil oben links oder der Zurück-Geste schließt du die Notiz. Leere Notizen verschwinden von selbst.</dd><dt>Liste</dt><dd>Macht aus dem Text eine Checkliste. Abgehakte Punkte rutschen nach unten und lassen sich einklappen.</dd><dt>Bild, Audio, Diktat</dt><dd>Über die Leiste unten in der Notiz. Diktat schreibt mit, was du sprichst.</dd><dt>Anheften</dt><dd>Pinnadel oben in der Notiz. Angeheftete Notizen stehen oben in der Liste; der Bereich lässt sich mit dem Pfeil zuklappen.</dd><dt>Bereich</dt><dd>Der Knopf oben in der Notiz (Privat, Beruflich, Freelance). „auto“ heißt: Merkn sortiert selbst ein, nach den Wörtern unter Einstellungen → Einsortieren.</dd></dl></details><details class="help"><summary>Text gestalten</summary><dl><dt>**fett**</dt><dd>Zwei Sternchen davor und dahinter.</dd><dt># Überschrift</dt><dd>Eine Raute und ein Leerzeichen am Zeilenanfang, ## für kleiner.</dd><dt>- Punkt</dt><dd>Strich und Leerzeichen am Zeilenanfang ergibt eine Aufzählung; Einrücken geht mit Leerzeichen.</dd><dt>Links</dt><dd>Webadressen werden kurz angezeigt und sind antippbar.</dd><dt>[[Titel]]</dt><dd>Link auf eine andere Notiz mit diesem Titel. Grau heißt: gibt es noch nicht, antippen legt sie an.</dd><dt>Zum Bearbeiten</dt><dd>Gestalteten Text einmal antippen, dann siehst du ihn wieder als normalen Text.</dd></dl></details><details class="help"><summary>Tags</summary><dl><dt>#wort im Text</dt><dd>Wird automatisch zum Tag. Umlaute bleiben erhalten.</dd><dt>Tag-Chips unter der Suche</dt><dd>Antippen filtert. Lange drücken macht einen Tag zum Favoriten (Stern); Favoriten stehen vorn und werden in jeder Notiz vorgeschlagen.</dd><dt>Tabs</dt><dd>Unter Einstellungen → Tabs bekommt ein Tag einen eigenen Reiter neben den Bereichen, z. B. Software.</dd></dl></details><details class="help"><summary>Suchen und filtern</summary><dl><dt>Suche</dt><dd>Durchsucht Titel, Text, Listen und Tags, dazu Archiv und Papierkorb. Treffer sind gelb markiert.</dd><dt>#tag</dt><dd>Sucht nur in Tags. #bucher findet auch #bücher.</dd><dt>2019</dt><dd>Eine Jahreszahl filtert nach dem Jahr.</dd><dt>20-24 uhr</dt><dd>Filtert nach der Uhrzeit, zu der eine Notiz entstanden ist.</dd><dt>Zeit</dt><dd>Der Knopf unter der Suche: Jahr, Zeitraum, Uhrzeit und Sortierung.</dd></dl></details><details class="help"><summary>In der Liste</summary><dl><dt>Wischen</dt><dd>Nach rechts oder links wischen löst eine Aktion aus, standardmäßig Anheften und Archivieren. Einstellen unter Einstellungen → Wischen.</dd><dt>Lange drücken</dt><dd>Eintrag 2 Sekunden halten: Er wackelt, dann fragt Merkn, ob er gelöscht werden soll.</dd><dt>Mehrere auswählen</dt><dd>Häkchen-Symbol oben. Dann Notizen antippen und gemeinsam taggen, verschieben, archivieren oder löschen.</dd><dt>Pfeil nach oben / unten</dt><dd>Erscheint, wenn du in einer langen Liste mehrmals in eine Richtung scrollst.</dd><dt>Alle anzeigen</dt><dd>Ganz unten, wenn die Liste länger als 150 Einträge ist.</dd></dl></details><details class="help"><summary>Archiv, Papierkorb, Verlauf</summary><dl><dt>Archiv</dt><dd>Über das ⋯-Menü einer Notiz oder per Wischen. Der Link „Archiv“ steht unten in der Liste.</dd><dt>Löschen</dt><dd>Legt die Notiz in den Papierkorb, 5 Sekunden lang lässt sich das rückgängig machen. Nach 30 Tagen wird sie endgültig entfernt.</dd><dt>Papierkorb</dt><dd>Link unten in der Liste. Dort wiederherstellen, endgültig löschen oder leeren.</dd><dt>Verlauf</dt><dd>⋯-Menü einer Notiz. Zeigt frühere Fassungen von GitHub und holt eine zurück. Braucht Internet.</dd></dl></details><details class="help"><summary>Bäume</summary><dl><dt>Als Baum anzeigen</dt><dd>⋯-Menü einer Notiz. Eingerückte Zeilen mit „- Name“ werden zu einem aufklappbaren Baum.</dd><dt>Eigenschaften</dt><dd>Unter einem Eintrag z. B. „version: 1.0“, „status: Fertig“, „info: …“, „link: …“, „seit: …“, „stand: …“, „bild: …“.</dd></dl></details><details class="help"><summary>Werkzeuge</summary><dl><dt>Gedichte finden</dt><dd>Einstellungen → Allgemein. Sucht gereimte Notizen und vergibt nach deiner Prüfung #lyrik.</dd><dt>Zitate finden</dt><dd>Einstellungen → Allgemein. Sucht Notizen mit Anführungszeichen und vergibt nach deiner Prüfung #zitat.</dd><dt>An Claude übergeben</dt><dd>Pfeil-Symbol oben kopiert alle Notizen der aktuellen Ansicht; im ⋯-Menü einer Notiz nur diese.</dd><dt>Von Claude übernehmen</dt><dd>Einstellungen → Allgemein. Fügt ein, was Claude geschrieben hat. „Inhalt ersetzen“ im ⋯-Menü ersetzt eine Notiz.</dd><dt>Doppelte finden</dt><dd>Einstellungen → Allgemein. Findet Notizen mit gleichem oder fast gleichem Inhalt; die neueste bleibt, die anderen kommen nach deiner Prüfung in den Papierkorb.</dd><dt>Tags umbenennen und teilen</dt><dd>Einstellungen → Tags. Einen Tag antippen: umbenennen, mit einem anderen zusammenführen, alle Notizen damit als Sammlung teilen oder drucken.</dd><dt>Teilen</dt><dd>⋯-Menü einer Notiz öffnet das Teilen-Menü des Handys, z. B. für WhatsApp oder Mail.</dd><dt>Heute vor … Jahren</dt><dd>Oben in der Liste „Alle“ erscheint eine Notiz von diesem Tag in einem früheren Jahr, daneben „Zufällige Notiz“. Mit dem X für heute ausblenden.</dd><dt>Ordner importieren</dt><dd>Einstellungen → Allgemein. Liest einen Ordner mit Notiz-Dateien ein, z. B. aus Google Keep.</dd></dl></details><details class="help"><summary>Sync und Tastatur</summary><dl><dt>Punkt oben</dt><dd>Grün: alles synchron. Orange: Änderungen warten. Rot: Fehler, antippen für Details. Grau: nicht mit GitHub verbunden. Antippen synchronisiert sofort.</dd><dt>GitHub</dt><dd>Notizen liegen in deinem privaten Repo. Der Schlüssel bleibt nur auf diesem Gerät.</dd><dt>⌘K / Strg+K</dt><dd>Springt in die Suche.</dd><dt>N</dt><dd>Neue Notiz.</dd><dt>Esc</dt><dd>Schließt die offene Notiz.</dd></dl></details>
     <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p></section>`, d => {
     d.classList.add("settings");
     const nav = d.querySelector(".snav"), chips = [...d.querySelectorAll("[data-sec]")];
@@ -1947,6 +2064,8 @@ function openSettings(){
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
     d.querySelector("#sPoems").onclick = () => { closeDialog(); findDialog("lyrik"); };
     d.querySelector("#sQuotes").onclick = () => { closeDialog(); findDialog("zitat"); };
+    d.querySelector("#sDups").onclick = () => { closeDialog(); dupDialog(); };
+    d.querySelectorAll("[data-tagrow]").forEach(b => b.onclick = () => { closeDialog(); tagDialog(b.dataset.tagrow); });
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
     const ss = d.querySelector("#sSync"); if (ss) ss.onclick = () => { sync(); closeDialog(); };
     d.querySelector("#sConn").onclick = () => saveConnection("s");
