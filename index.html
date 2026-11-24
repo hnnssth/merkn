@@ -259,6 +259,19 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .edbody.read{white-space:pre-wrap;overflow-wrap:anywhere;cursor:text;min-height:60px}
 .lnk{color:var(--ink);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ink) 35%,transparent);text-underline-offset:3px;text-decoration-thickness:1.5px}
 .lnk::before{content:"↗ ";color:var(--faint);font-size:.85em}
+.list.pinned .pinsm{display:none}
+.pinmore{margin:6px 0 4px 16px}
+.tags{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 36px),transparent)}
+.fab{transition:transform .25s ease,opacity .25s ease}
+.fab.tuck{transform:translateY(110px);opacity:0;pointer-events:none}
+.edbody.read strong{font-weight:650}
+.mdh{display:inline-block;font:650 19px/1.35 var(--display);letter-spacing:-.01em;margin-top:4px}
+.mdh1{font-size:21px}.mdh3{font-size:17px}
+.mdli{display:inline-block;position:relative}
+.mdli::before{content:"•";display:inline-block;width:14px;margin-left:-14px;color:var(--faint)}
+.note{touch-action:pan-y;background:color-mix(in srgb,var(--area) 4%,var(--bg));position:relative}
+.note.sw-pin{box-shadow:inset 4px 0 0 color-mix(in srgb,var(--privat) calc(var(--sw)*100%),transparent)}
+.note.sw-arch{box-shadow:inset -4px 0 0 color-mix(in srgb,var(--freelance) calc(var(--sw)*100%),transparent)}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -281,7 +294,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.6";
+const APP_VERSION = "1.7";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -801,6 +814,36 @@ function statusText(){
   return "Synchronisiert" + (S.lastSync ? " um " + new Date(S.lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "");
 }
 
+/* ---------- Wischen: rechts anheften, links archivieren ---------- */
+function bindSwipe(li){
+  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, pid = null;
+  const reset = () => { li.style.transform = ""; li.classList.remove("sw-pin", "sw-arch"); li.style.setProperty("--sw", "0"); };
+  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; });
+  li.addEventListener("pointermove", e => {
+    if (!active || e.pointerId !== pid) return;
+    const mx = e.clientX - x0, my = e.clientY - y0;
+    if (!decided) { if (Math.abs(mx) < 12 && Math.abs(my) < 12) return; decided = true; if (Math.abs(my) > Math.abs(mx)) { active = false; return; } try { li.setPointerCapture(pid); } catch {} }
+    dx = Math.max(-140, Math.min(140, mx));
+    li.style.transition = "none"; li.style.transform = `translateX(${dx}px)`;
+    li.classList.toggle("sw-pin", dx > 0); li.classList.toggle("sw-arch", dx < 0);
+    li.style.setProperty("--sw", String(Math.min(1, Math.abs(dx) / 90)));
+  });
+  const end = () => {
+    if (!active) return; active = false;
+    li.style.transition = "transform .2s ease";
+    const n = S.notes.get(li.dataset.id);
+    if (decided && Math.abs(dx) > 90 && n) {
+      li._swiped = true; navigator.vibrate?.(12);
+      if (dx > 0) { n.pinned = !n.pinned; touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", () => { n.pinned = !n.pinned; touch(n, {reclassify:false}); render(); }); }
+      else { n.archived = !n.archived; touch(n, {reclassify:false}); toast(n.archived ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !n.archived; touch(n, {reclassify:false}); render(); }); }
+      reset(); render(); return;
+    }
+    if (decided) li._swiped = true;
+    reset(); setTimeout(() => li._swiped = false, 50);
+  };
+  li.addEventListener("pointerup", end); li.addEventListener("pointercancel", end);
+}
+
 /* ---------- Ansicht: Liste ---------- */
 const pad2 = x => String(x).padStart(2,"0");
 const localDay = iso => { const d = new Date(iso); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
@@ -896,11 +939,13 @@ function typeIcons(n, open, total){
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
 function noteRow(n){
   if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen">
-    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(shortLinks(n.body.trim()))}</p></div></li>`;
+    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(plainMd(shortLinks(n.body.trim())))}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const tr = n.kind === "tree" ? parseTree(n.body) : null;
-  const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : shortLinks(n.body.trim()) || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
-  const title = n.title.trim() || (n.body.trim() ? "" : "");
+  const bodyLines = plainMd(shortLinks(n.body.trim())).split("\n").map(x => x.trim()).filter(Boolean);
+  const autoTitle = !n.title.trim() && !tr && bodyLines.length > 1 && bodyLines[0].length <= 70;
+  const title = n.title.trim() || (autoTitle ? bodyLines[0] : "");
+  const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : (autoTitle ? bodyLines.slice(1) : bodyLines).join(" ") || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
   return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen">
     <div>
       ${title ? `<p class="nt">${n.pinned ? ICON.pinSm : ""}${esc(title)}</p>` : ""}
@@ -941,7 +986,7 @@ function render(){
       flush();
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
     const pc = pinsCollapsed();
-    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true">${pc ? "▸" : "▾"}</span></button>${pc ? "" : `<ul class="list pinned">${pinned.map(noteRow).join("")}</ul>`}` : "") + groups
+    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true">${pc ? "▸" : "▾"}</span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
       + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
       + `<div class="endrow"><p class="countline">${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
@@ -974,6 +1019,7 @@ function allTags(){ const s = new Set(); for (const n of S.notes.values()) if (!
 function bindList(){
   $("#q").addEventListener("input", e => { S.view.q = e.target.value; S.view.limit = 150; render(); });
   $("#timeChip").onclick = timeDialog;
+  const pa = $("#pinAll"); if (pa) pa.onclick = () => { S.pinAll = !S.pinAll; render(); };
   const pt = $("#pinToggle"); if (pt) pt.onclick = () => { try { localStorage.setItem("merkn-pins", pinsCollapsed() ? "auf" : "zu"); } catch {} render(); };
   const ei = $("#emptyImport"); if (ei) ei.onclick = importDialog;
   const tt = $("#toTop"); if (tt) tt.onclick = () => { window.scrollTo({top:0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); setTimeout(() => $("#q")?.focus({preventScroll:true}), 400); };
@@ -988,7 +1034,8 @@ function bindList(){
     b.onclick = () => { if (long) return; S.view.limit = 150; S.view.tag = S.view.tag === b.dataset.t ? null : b.dataset.t; render(); };
   });
   document.querySelectorAll(".note").forEach(li => {
-    li.onclick = () => openNote(S.notes.get(li.dataset.id));
+    bindSwipe(li);
+    li.onclick = () => { if (li._swiped) { li._swiped = false; return; } openNote(S.notes.get(li.dataset.id)); };
     li.onkeydown = e => { if (e.key === "Enter") openNote(S.notes.get(li.dataset.id)); };
   });
   const nb = $("#new"); if (nb) nb.onclick = () => newMenuOrNote(nb);
@@ -1033,11 +1080,11 @@ function timeDialog(){
 }
 
 /* ---------- Links: kurz anzeigen, anklickbar ---------- */
-const URL_RE = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+const URL_RE = /\bhttps?:\/\/(?:[^\s<>"'()]|\([^\s<>"'()]*\))+(?<![.,;:!?])/g;
 function shortUrl(u){
   try {
     const x = new URL(u), host = x.hostname.replace(/^www\./, "");
-    let seg = decodeURIComponent(x.pathname).split("/").filter(t => t && !/^(dp|gp|aw|d|p|products|product|shop|en|de|eu|status|watch|video|b|r|s|share)$/i.test(t) && !/^[A-Z0-9]{8,}$/.test(t) && !/^\d+$/.test(t))[0] || "";
+    let seg = decodeURIComponent(x.pathname).split("/").filter(t => t && !/^(dp|gp|aw|d|p|products|product|shop|en|de|eu|status|watch|video|b|r|s|share|wiki)$/i.test(t) && !/^[A-Z0-9]{8,}$/.test(t) && !/^\d+$/.test(t))[0] || "";
     seg = seg.replace(/\.(html?|php)$/i, "").replace(/[-_+]+/g, " ").replace(/\s+/g, " ").trim();
     if (seg.length > 22) seg = seg.slice(0, 21).trim() + "…";
     return seg ? `${host} › ${seg}` : host;
@@ -1052,6 +1099,20 @@ function linkify(t){
   }
   return out + esc(t.slice(last));
 }
+
+/* ---------- Leichtes Markdown (fett, Überschriften, Aufzählungen) ---------- */
+const MD_RE = /(\*\*[^*\n]+\*\*|^#{1,3} |^\s*[-*•] )/m;
+function inlineMd(t){ return linkify(t).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>"); }
+function renderMd(text){
+  return String(text || "").split("\n").map(l => {
+    const h = l.match(/^(#{1,3})\s+(.*)$/);
+    if (h) return `<span class="mdh mdh${h[1].length}">${inlineMd(h[2])}</span>`;
+    const b = l.match(/^(\s*)[-*•]\s+(.*)$/);
+    if (b) return `<span class="mdli" style="padding-left:${Math.min(3, Math.floor(b[1].length / 2)) * 16 + 16}px">${inlineMd(b[2])}</span>`;
+    return inlineMd(l);
+  }).join("\n");
+}
+const plainMd = t => String(t || "").replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/^#{1,3}\s+/gm, "").replace(/^\s*[-*]\s+/gm, "• ");
 
 /* ---------- Baum ---------- */
 const slugify = t => norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
@@ -1204,7 +1265,7 @@ function renderEditor(keepFocus=false){
     <input id="edTitle" class="edtitle" placeholder="Titel" value="${esc(n.title)}" autocomplete="off" enterkeyhint="next">
     ${n.kind === "tree" ? `<div class="tbar"><button id="tOpen">Alles auf</button><button id="tClose">Alles zu</button>${S.treeEdit ? `<button id="tSort">A–Z</button>` : ""}<button id="tEdit" class="${S.treeEdit ? "on" : ""}">${S.treeEdit ? "Fertig" : "Bearbeiten"}</button></div>` : ""}
     ${n.kind === "tree" && !S.treeEdit ? `<div class="treewrap">${parseTree(n.body).length ? treeHTML(parseTree(n.body)) : `<p class="hint">Noch leer. Tippe auf „Bearbeiten“ und schreib eine eingerückte Liste.</p>`}</div>`
-      : n.kind !== "tree" && !S.bodyEdit && URL_RE.test(n.body) && (URL_RE.lastIndex = 0, true) ? `<div id="edRead" class="edbody read" tabindex="0" aria-label="Notiztext, tippen zum Bearbeiten">${linkify(n.body)}</div>`
+      : n.kind !== "tree" && !S.bodyEdit && ((URL_RE.lastIndex = 0, URL_RE.test(n.body)) || MD_RE.test(n.body)) && (URL_RE.lastIndex = 0, true) ? `<div id="edRead" class="edbody read" tabindex="0" aria-label="Notiztext, tippen zum Bearbeiten">${renderMd(n.body)}</div>`
       : `<textarea id="edBody" class="edbody${n.kind === "tree" ? " mono" : ""}" placeholder="${n.kind === "tree" ? "- Apps&#10;  - Merkn&#10;    version: 1.0&#10;    status: Beta&#10;    info: Notizen-App&#10;    link: hnnssth.github.io/merkn&#10;    seit: 11/2026" : "Notiz"}" rows="${n.items.length ? 1 : 3}" style="${n.items.length ? "min-height:40px" : ""}">${esc(n.body)}</textarea>`}
     ${n.items.length ? `<ul class="items">${openItems.map(itemHTML).join("")}</ul>
       <button class="additem" id="addItem">+ Eintrag</button>
@@ -1590,6 +1651,8 @@ document.addEventListener("keydown", e => {
   else if (e.key === "Escape" && S.open && !popEl && !$("#dlg") && !$(".viewer")) closeEditor();
   else if (e.key === "n" && !S.open && !$("#dlg") && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !S.welcome) { e.preventDefault(); openNote(newNote(), true); }
 });
+let lastY = 0;
+window.addEventListener("scroll", () => { const y = scrollY, f = $("#new"); if (f) f.classList.toggle("tuck", y > lastY + 4 && y > 200); if (y < lastY - 4 || y < 200) f?.classList.remove("tuck"); lastY = y; }, {passive:true});
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") scheduleSync(200); else if (S.open && S.open._edited) { S.open._edited = false; if (!isEmpty(S.open)) touch(S.open); } });
 window.addEventListener("online", () => scheduleSync(200));
 setInterval(() => { if (document.visibilityState === "visible") scheduleSync(0); }, 120000);
