@@ -201,6 +201,20 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .timechip{display:inline-flex;align-items:center;gap:5px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tsec{margin-top:20px}.tsec label.f{margin:0 0 8px}
+.tgrid{display:grid;gap:6px}
+.tgrid .tag{justify-content:center;text-align:center;margin:0;min-width:0;font-variant-numeric:tabular-nums}
+.tgrid.years{grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
+.tgrid.hrs{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}
+.tgrid.hrs small{color:var(--faint);font-size:inherit;margin-left:4px}
+.tgrid.hrs .tag[aria-pressed="true"] small{color:inherit;opacity:.7}
+.tgrid.two2{grid-template-columns:1fr 1fr}
+.trange{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:8px}
+.trange:has(> span:nth-of-type(2)){grid-template-columns:1fr auto 1fr auto}
+.trange span{color:var(--muted);font-size:14px}
+.trange .inp{min-width:0;min-height:44px}
+.dialog .row.tbtns{display:grid;grid-template-columns:1fr 1fr;margin-top:22px}
+.dialog p.hint.tsec{margin:18px 0 0}
 .two>div{min-width:0}.two .inp{min-width:0;max-width:100%}
 .tag.fav{color:var(--ink);font-weight:600;background:color-mix(in srgb,var(--ink) 7%,transparent);border-color:transparent}
 .tag.fav[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
@@ -216,8 +230,29 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .pinchev{margin-left:auto;width:44px;height:44px;display:grid;place-items:center;color:var(--muted);border-radius:50%}
 .pinchev svg{transition:transform .2s ease}
 .pinhead:hover .pinchev{background:color-mix(in srgb,var(--ink) 6%,transparent)}
-.pinhead[aria-expanded="false"] .pincount{color:var(--ink);font-weight:600;background:color-mix(in srgb,var(--ink) 8%,transparent);padding:1px 8px;border-radius:10px}
 .list.dim .note{opacity:.62}
+.nlink{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;color:var(--ink);font-weight:500}
+.nlink.missing{color:var(--muted)}
+.hist{display:flex;flex-direction:column;max-height:50vh;overflow:auto;margin:6px 0 4px}
+.histrow{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.histrow span{color:var(--muted);font-size:13px}
+.histrow:disabled{opacity:.5}
+.histprev{max-height:50vh;overflow:auto;white-space:pre-wrap;font-size:14px;line-height:1.5;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin:8px 0}
+.note.selmode{padding-left:46px}
+.note.selmode::after{content:"";position:absolute;left:14px;top:50%;width:20px;height:20px;margin-top:-10px;border:2px solid var(--faint);border-radius:6px;z-index:2}
+.note.selmode.selected::after{background:var(--ink);border-color:var(--ink);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E");background-size:14px;background-position:center;background-repeat:no-repeat}
+.note.selmode.selected{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+#selbtn[aria-pressed="true"]{color:var(--ink);background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.selbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:30;display:flex;flex-direction:column;gap:2px;width:min(460px,calc(100vw - 20px));background:var(--ink);color:var(--bg);border-radius:16px;padding:6px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.selbar button{color:inherit;padding:9px 11px;border-radius:10px;white-space:nowrap;font-size:14px;display:grid;place-items:center}
+.selbar button:disabled{opacity:.4}
+.selbar button.danger{color:#ff9d8f}
+.selbar #selX svg{width:18px;height:18px}
+.selcount{padding:0 8px 0 4px;font-size:14px;white-space:nowrap;opacity:.8;flex:1}
+.selhead,.selacts{display:flex;align-items:center}
+.selacts{border-top:1px solid color-mix(in srgb,var(--bg) 18%,transparent);padding-top:2px}
+.selacts button{flex:1;padding:10px 4px}
+.wrap:has(~ .selbar){padding-bottom:140px}
 .xhead{margin-top:22px}
 .hits{color:var(--faint);font-size:13px;margin:4px 0 2px}
 .nm .left{color:var(--danger)}
@@ -317,7 +352,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.11";
+const APP_VERSION = "1.12";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1077,7 +1112,7 @@ function render(){
       flush();
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
     const pc = pinsCollapsed();
-    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(${pc ? -90 : 0}deg)"><path d="M6 9l6 6 6-6"/></svg></span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
+    body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="transform:rotate(${pc ? -90 : 0}deg)"><path d="M3 7h18L12 19z"/></svg></span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
       + (rest.length > shown.length ? `<button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} von ${rest.length - shown.length} anzeigen</button>` : "")
       + `<div class="endrow"><p class="countline">${searching ? "" : `${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}`}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
   }
@@ -1085,6 +1120,7 @@ function render(){
     <header class="top">
       <h1 class="mark">${v.archive || v.trash ? `<button id="leaveArch" class="iconbtn" style="display:inline-grid;vertical-align:middle;margin-left:-10px" aria-label="Zurück zur Liste">${ICON.back}</button>${v.trash ? "Papierkorb" : "Archiv"}` : "Merkn<span>.</span>"}</h1>
       <button class="iconbtn" id="syncbtn" title="${esc(statusText())}" aria-label="Synchronisieren"><span class="status" id="status" data-s="${S.status}"></span></button>
+      ${list.length ? `<button class="iconbtn" id="selbtn" aria-pressed="${!!S.sel}" title="Mehrere auswählen" aria-label="Mehrere auswählen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg></button>` : ""}
       <button class="iconbtn" id="share" title="Aktuelle Ansicht an Claude übergeben" aria-label="Aktuelle Ansicht an Claude übergeben"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 14v4a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3v-4"/></svg></button>
       <button class="iconbtn" id="settings" aria-label="Einstellungen">${ICON.gear}</button>
     </header>
@@ -1101,7 +1137,8 @@ function render(){
     ${v.trash && list.length ? `<p class="hint" style="margin-top:18px">Gelöschte Notizen bleiben 30 Tage hier, dann werden sie endgültig entfernt. Öffnen, um sie wiederherzustellen.</p><button class="more" id="emptyTrash" style="color:var(--danger)">Papierkorb leeren</button>` : ""}
     ${!v.archive && !v.trash && !searching && (archCount || trashCount) ? `<p class="archivelinks">${archCount ? `<a href="#" class="archivelink" id="toArch">Archiv (${archCount})</a>` : ""}${trashCount ? `<a href="#" class="archivelink" id="toTrash">Papierkorb (${trashCount})</a>` : ""}</p>` : ""}
   </div>
-  ${v.archive || v.trash ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
+  ${S.sel ? selBarHTML() : v.archive || v.trash ? "" : `<button class="fab" id="new" aria-label="Neue Notiz">${ICON.plus}</button>`}`;
+  if (S.sel) document.querySelectorAll(".note").forEach(li => { const on = S.sel.has(li.dataset.id); li.classList.add("selmode"); li.classList.toggle("selected", on); li.setAttribute("aria-pressed", on); });
   bindList();
   { const nav = document.querySelector(".areas"), act = nav?.querySelector('[aria-pressed="true"]'); if (nav && act && (act.offsetLeft + act.offsetWidth > nav.scrollLeft + nav.clientWidth || act.offsetLeft < nav.scrollLeft)) nav.scrollLeft = act.offsetLeft - 20; }
   if (focused) { const q = $("#q"); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
@@ -1127,7 +1164,10 @@ function bindList(){
     b.addEventListener("contextmenu", e => e.preventDefault());
     b.onclick = () => { if (long) return; S.view.limit = 150; S.view.tag = S.view.tag === b.dataset.t ? null : b.dataset.t; render(); };
   });
+  const sb = $("#selbtn"); if (sb) sb.onclick = () => { S.sel = S.sel ? null : new Set(); render(); };
+  if (S.sel) bindSelBar();
   document.querySelectorAll(".note").forEach(li => {
+    if (S.sel) { li.onclick = () => { const id = li.dataset.id; S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id); render(); }; return; }
     bindSwipe(li);
     li.onclick = () => { if (li._swiped) { li._swiped = false; return; } openNote(S.notes.get(li.dataset.id)); };
     li.onkeydown = e => { if (e.key === "Enter") openNote(S.notes.get(li.dataset.id)); };
@@ -1141,6 +1181,35 @@ function bindList(){
   const tt2 = $("#toTrash"); if (tt2) tt2.onclick = e => { e.preventDefault(); S.view.trash = true; S.view.archive = false; render(); window.scrollTo(0,0); };
   const et = $("#emptyTrash"); if (et) et.onclick = () => confirmDialog("Papierkorb leeren?", "Alle Notizen im Papierkorb werden auf allen Geräten endgültig gelöscht. Das lässt sich nicht rückgängig machen.", "Endgültig löschen", () => { [...S.notes.values()].filter(n => n.trashed).forEach(removeNote); render(); toast("Papierkorb geleert."); });
 }
+function selBarHTML(){
+  const k = S.sel.size, v = S.view;
+  return `<div class="selbar" role="toolbar" aria-label="Auswahl">
+    <div class="selhead"><button id="selX" aria-label="Auswahl beenden">${ICON.x}</button><span class="selcount">${k} ausgewählt</span><button id="selAll">Alle</button></div>
+    <div class="selacts">${v.trash ? `<button id="selRestore" ${k ? "" : "disabled"}>Wiederherstellen</button>` : `<button id="selTag" ${k ? "" : "disabled"}>Tag</button><button id="selArea" ${k ? "" : "disabled"}>Bereich</button><button id="selArch" ${k ? "" : "disabled"}>${v.archive ? "Zurückholen" : "Archivieren"}</button><button id="selDel" class="danger" ${k ? "" : "disabled"}>Löschen</button>`}</div>
+  </div>`;
+}
+function bindSelBar(){
+  const ids = () => [...S.sel].map(id => S.notes.get(id)).filter(Boolean);
+  const done = (msg, undoFn) => { S.sel = null; render(); toast(msg, undoFn ? "Rückgängig" : undefined, undoFn ? () => { undoFn(); render(); } : undefined); };
+  $("#selX").onclick = () => { S.sel = null; render(); };
+  $("#selAll").onclick = () => { const all = visibleNotes().map(n => n.id); S.sel = S.sel.size === all.length ? new Set() : new Set(all); render(); };
+  const b = id => document.getElementById(id);
+  if (b("selRestore")) b("selRestore").onclick = () => { const l = ids(); l.forEach(n => { n.trashed = false; n.trashedAt = null; touch(n, {reclassify:false}); }); done(`${l.length} wiederhergestellt.`); };
+  if (b("selDel")) b("selDel").onclick = () => { const l = ids(), at = nowISO(); l.forEach(n => { n.trashed = true; n.trashedAt = at; touch(n, {reclassify:false}); }); done(`${l.length} in den Papierkorb gelegt.`, () => l.forEach(n => { n.trashed = false; n.trashedAt = null; touch(n, {reclassify:false}); })); };
+  if (b("selArch")) b("selArch").onclick = () => { const l = ids(), to = !S.view.archive; l.forEach(n => { n.archived = to; touch(n, {reclassify:false}); }); done(`${l.length} ${to ? "archiviert" : "zurückgeholt"}.`, () => l.forEach(n => { n.archived = !to; touch(n, {reclassify:false}); })); };
+  if (b("selArea")) b("selArea").onclick = e => popover(e.currentTarget, AREAS.map(a => `<button data-set="${a}" role="menuitem"><span class="dot" data-a="${a}"></span>${AREA_NAME[a]}</button>`).join(""), p => {
+    p.querySelectorAll("[data-set]").forEach(x => x.onclick = () => { closePop(); const l = ids(), prev = l.map(n => [n, n.area, n.areaAuto]);
+      l.forEach(n => { n.area = x.dataset.set; n.areaAuto = false; touch(n, {reclassify:false}); });
+      done(`${l.length} nach ${AREA_NAME[x.dataset.set]} verschoben.`, () => prev.forEach(([n, a, au]) => { n.area = a; n.areaAuto = au; touch(n, {reclassify:false}); })); });
+  });
+  if (b("selTag")) b("selTag").onclick = () => dialog(`<h2>Tag hinzufügen</h2><p class="hint">Für ${S.sel.size} ausgewählte ${S.sel.size === 1 ? "Notiz" : "Notizen"}.</p><input id="selTagIn" list="taglist" placeholder="#tag" autocomplete="off" enterkeyhint="done"><div class="row"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Hinzufügen</button></div>`, d => {
+    const go = () => { const t = norm(d.querySelector("#selTagIn").value).replace(/^#/, "").trim().replace(/\s+/g, "-"); if (!t) return; closeDialog();
+      const l = ids().filter(n => !n.tags.includes(t)); l.forEach(n => { n.tags = [...n.tags, t]; touch(n, {reclassify:false}); });
+      done(`#${t} bei ${l.length} ${l.length === 1 ? "Notiz" : "Notizen"} ergänzt.`, () => l.forEach(n => { n.tags = n.tags.filter(x => x !== t); touch(n, {reclassify:false}); })); };
+    d.querySelector("[data-x]").onclick = closeDialog; d.querySelector("[data-ok]").onclick = go;
+    d.querySelector("#selTagIn").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); go(); } };
+  });
+}
 function newMenuOrNote(anchor){
   let pressTimer = null;
   openNote(newNote(), true);
@@ -1152,14 +1221,13 @@ function timeDialog(){
   const HP = [["Morgens",5,12],["Mittags",12,17],["Abends",17,22],["Spätabends",20,24],["Nachts",22,5]];
   const hours = Array.from({length:25}, (_,i) => i);
   dialog(`<h2>Zeit</h2><p>Gefiltert wird nach dem Zeitpunkt, an dem eine Notiz entstanden ist.</p>
-    <label class="f">Jahr</label><div class="chips">${["alle", ...years].map(y => `<button class="tag" data-year="${y}" aria-pressed="${y === "alle" ? !(v.from||v.to) : v.from === y+"-01-01" && v.to === y+"-12-31"}">${y === "alle" ? "Alle" : y}</button>`).join("")}</div>
-    <div class="two"><div><label class="f" for="tFrom">Von</label><input class="inp" type="date" id="tFrom" value="${esc(v.from)}"></div><div><label class="f" for="tTo">Bis</label><input class="inp" type="date" id="tTo" value="${esc(v.to)}"></div></div>
-    <label class="f">Uhrzeit</label><div class="chips"><button class="tag" data-h="" aria-pressed="${v.h1 == null}">Jederzeit</button>${HP.map(([l,a,b]) => `<button class="tag" data-h="${a}-${b}" aria-pressed="${v.h1 === a && (v.h2 === b % 24)}">${l} ${a}–${b}</button>`).join("")}</div>
-    <div class="two"><div><label class="f" for="tH1">Von Uhr</label><select class="inp" id="tH1"><option value="">–</option>${hours.slice(0,24).map(h => `<option ${v.h1 === h ? "selected" : ""}>${h}</option>`).join("")}</select></div>
-      <div><label class="f" for="tH2">Bis Uhr</label><select class="inp" id="tH2"><option value="">–</option>${hours.slice(1).map(h => `<option ${v.h1 != null && (v.h2 === h % 24) ? "selected" : ""}>${h}</option>`).join("")}</select></div></div>
-    <label class="f">Sortieren nach</label><div class="chips"><button class="tag" data-sort="created" aria-pressed="${v.sort === "created"}">Entstanden</button><button class="tag" data-sort="updated" aria-pressed="${v.sort === "updated"}">Zuletzt bearbeitet</button></div>
-    <p class="hint">Tipp: In der Suche geht auch „20-24 uhr“ oder „2019“.</p>
-    <div class="row"><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-ok>Anwenden</button></div>`, d => {
+    <section class="tsec"><label class="f">Jahr</label><div class="tgrid years">${["alle", ...years].map(y => `<button class="tag" data-year="${y}" aria-pressed="${y === "alle" ? !(v.from||v.to) : v.from === y+"-01-01" && v.to === y+"-12-31"}">${y === "alle" ? "Alle" : y}</button>`).join("")}</div></section>
+    <section class="tsec"><label class="f">Zeitraum</label><div class="trange"><input class="inp" type="date" id="tFrom" value="${esc(v.from)}" aria-label="Von Datum"><span>bis</span><input class="inp" type="date" id="tTo" value="${esc(v.to)}" aria-label="Bis Datum"></div></section>
+    <section class="tsec"><label class="f">Uhrzeit</label><div class="tgrid hrs"><button class="tag" data-h="" aria-pressed="${v.h1 == null}">Jederzeit</button>${HP.map(([l,a,b]) => `<button class="tag" data-h="${a}-${b}" aria-pressed="${v.h1 === a && (v.h2 === b % 24)}">${l} <small>${a}–${b}</small></button>`).join("")}</div>
+      <div class="trange"><select class="inp" id="tH1" aria-label="Von Uhr"><option value="">–</option>${hours.slice(0,24).map(h => `<option ${v.h1 === h ? "selected" : ""}>${h}</option>`).join("")}</select><span>bis</span><select class="inp" id="tH2" aria-label="Bis Uhr"><option value="">–</option>${hours.slice(1).map(h => `<option ${v.h1 != null && (v.h2 === h % 24) ? "selected" : ""}>${h}</option>`).join("")}</select><span>Uhr</span></div></section>
+    <section class="tsec"><label class="f">Sortieren nach</label><div class="tgrid two2"><button class="tag" data-sort="created" aria-pressed="${v.sort === "created"}">Entstanden</button><button class="tag" data-sort="updated" aria-pressed="${v.sort === "updated"}">Zuletzt bearbeitet</button></div></section>
+    <p class="hint tsec">Tipp: In der Suche geht auch „20-24 uhr“ oder „2019“.</p>
+    <div class="row tbtns"><button class="btn" data-reset>Zurücksetzen</button><button class="btn primary" data-ok>Anwenden</button></div>`, d => {
     const set = (sel, attr, fn) => d.querySelectorAll(sel).forEach(b => b.onclick = () => { d.querySelectorAll(sel).forEach(x => x.setAttribute("aria-pressed","false")); b.setAttribute("aria-pressed","true"); fn(b.getAttribute(attr)); });
     set("[data-year]", "data-year", y => { d.querySelector("#tFrom").value = y === "alle" ? "" : y+"-01-01"; d.querySelector("#tTo").value = y === "alle" ? "" : y+"-12-31"; });
     set("[data-h]", "data-h", h => { const [a,b] = h ? h.split("-").map(Number) : ["",""]; d.querySelector("#tH1").value = a === "" ? "" : String(a); d.querySelector("#tH2").value = b === "" ? "" : String(b); });
@@ -1197,8 +1265,9 @@ function linkify(t){
 }
 
 /* ---------- Leichtes Markdown (fett, Überschriften, Aufzählungen) ---------- */
-const MD_RE = /(\*\*[^*\n]+\*\*|^#{1,3} |^\s*[-*•] )/m;
-function inlineMd(t){ return linkify(t).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>"); }
+const MD_RE = /(\*\*[^*\n]+\*\*|^#{1,3} |^\s*[-*•] |\[\[[^\]\n]+\]\])/m;
+const findByTitle = t => { const k = norm(t.trim()); return [...S.notes.values()].find(o => !o._deleted && !o.trashed && norm((o.title || "").trim()) === k); };
+function inlineMd(t){ return linkify(t).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>").replace(/\[\[([^\]\n]+)\]\]/g, (m, x) => `<a href="#" class="nlink${findByTitle(x.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&#39;/g,"'")) ? "" : " missing"}" data-note="${x}">${x}</a>`); }
 function renderMd(text){
   return String(text || "").split("\n").map(l => {
     const h = l.match(/^(#{1,3})\s+(.*)$/);
@@ -1208,7 +1277,7 @@ function renderMd(text){
     return inlineMd(l);
   }).join("\n");
 }
-const plainMd = t => String(t || "").replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/^#{1,3}\s+/gm, "").replace(/^\s*[-*]\s+/gm, "• ");
+const plainMd = t => String(t || "").replace(/\[\[([^\]\n]+)\]\]/g, "$1").replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/^#{1,3}\s+/gm, "").replace(/^\s*[-*]\s+/gm, "• ");
 
 /* ---------- Baum ---------- */
 const slugify = t => norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
@@ -1306,6 +1375,16 @@ function openNote(n, isNew=false){
   history.pushState({ed:1}, "");
   renderEditor();
   setTimeout(() => { const t = isNew ? $("#edTitle") : null; if (t) t.focus(); }, 50);
+}
+// Im offenen Editor zu einer anderen Notiz wechseln (für [[Links]])
+function switchNote(t){
+  const n = S.open; if (!n || !t) return;
+  stopDictation(); stopRecording(); clearTimeout(edSaveTimer);
+  if (isEmpty(n)) { if (S.notes.has(n.id)) removeNote(n); }
+  else if (n._edited) { n._edited = false; touch(n); }
+  S.open = t; S.openNew = false; S.showDone = false; S.bodyEdit = false; S.treeEdit = false; treeOpen.clear(); infoOpen.clear();
+  if (t.kind === "tree") parseTree(t.body).forEach((_, i) => treeOpen.add("/" + i));
+  renderEditor(); const el = $("#editor"); if (el) el.scrollTop = 0;
 }
 function closeEditor(fromPop=false){
   const n = S.open; if (!n) return;
@@ -1409,7 +1488,13 @@ function bindEditor(){
   if (bo) bo.oninput = () => { n.body = bo.value; autosize(bo); edChanged(); };
   const rd = $("#edRead");
   const toEdit = () => { S.bodyEdit = true; renderEditor(); const t = $("#edBody"); if (t) { t.focus({preventScroll:true}); t.setSelectionRange(t.value.length, t.value.length); } };
-  if (rd) { rd.onclick = e => { if (e.target.closest("a")) return; toEdit(); }; rd.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); toEdit(); } }; }
+  if (rd) { rd.onclick = e => {
+    const nl = e.target.closest(".nlink");
+    if (nl) { e.preventDefault(); const name = nl.textContent, t = findByTitle(name);
+      if (t && t !== n) switchNote(t);
+      else if (!t) toast(`Keine Notiz „${name}“.`, "Anlegen", () => { const k = newNote({title:name}); k.title = name; touch(k); switchNote(k); });
+      return; }
+    if (e.target.closest("a")) return; toEdit(); }; rd.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); toEdit(); } }; }
   if (bo && S.bodyEdit) bo.onblur = () => setTimeout(() => { if (S.open === n && document.activeElement !== $("#edBody") && !dict && S.bodyEdit) { S.bodyEdit = false; renderEditor(); } }, 200);
   if (n.kind === "tree") bindTree(el);
   el.querySelectorAll(".itxt").forEach(t => {
@@ -1509,8 +1594,10 @@ function moreMenu(anchor){
     <button data-act="replace" role="menuitem">Inhalt ersetzen (von Claude)</button>
     <button data-act="tree" role="menuitem">${n.kind === "tree" ? "Als normale Notiz anzeigen" : "Als Baum anzeigen"}</button>
     <button data-act="arch" role="menuitem">${n.archived ? "Aus Archiv holen" : "Archivieren"}</button>
+    ${S.cfg && n._sha ? `<button data-act="hist" role="menuitem">Verlauf</button>` : ""}
     <hr>${n.trashed ? `<button data-act="restore" role="menuitem">Wiederherstellen</button><button data-act="purge" class="danger" role="menuitem">Endgültig löschen</button>` : `<button data-act="del" class="danger" role="menuitem">Löschen</button>`}`, p => {
     p.querySelector('[data-act="claude"]').onclick = () => { closePop(); copyForClaude([n]); };
+    const hb = p.querySelector('[data-act="hist"]'); if (hb) hb.onclick = () => { closePop(); historyDialog(n); };
     p.querySelector('[data-act="replace"]').onclick = () => { closePop(); replaceDialog(n); };
     p.querySelector('[data-act="tree"]').onclick = () => { closePop(); n.kind = n.kind === "tree" ? "" : "tree"; S.treeEdit = false; treeOpen.clear(); if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i)); n._edited = true; edChanged(); renderEditor(); };
     p.querySelector('[data-act="arch"]').onclick = () => { closePop(); n.archived = !n.archived; touch(n, {reclassify:false}); const was = n.archived; closeEditor(); toast(was ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !was; touch(n, {reclassify:false}); render(); }); };
@@ -1518,6 +1605,41 @@ function moreMenu(anchor){
     const del = p.querySelector('[data-act="del"]'); if (del) del.onclick = () => { closePop(); const k = leave(); trashNote(k); render(); };
     const rs = p.querySelector('[data-act="restore"]'); if (rs) rs.onclick = () => { closePop(); const k = leave(); k.trashed = false; k.trashedAt = null; touch(k, {reclassify:false}); render(); toast("Wiederhergestellt."); };
     const pg = p.querySelector('[data-act="purge"]'); if (pg) pg.onclick = () => { closePop(); confirmDialog("Endgültig löschen?", "Die Notiz wird auf allen Geräten entfernt und lässt sich nicht wiederherstellen.", "Endgültig löschen", () => { const k = leave(); removeNote(k); render(); toast("Endgültig gelöscht."); }); };
+  });
+}
+// Frühere Fassungen einer Notiz aus der GitHub-Historie
+async function historyDialog(n){
+  dialog(`<h2>Verlauf</h2><p class="hint">Lade frühere Fassungen…</p>`, () => {});
+  let list;
+  try {
+    const r = await gh(`/commits?path=${encodeURIComponent(`notes/${n.id}.md`)}&sha=${encodeURIComponent(S.cfg.branch)}&per_page=40`);
+    if (!r.ok) throw new Error(await ghErr(r));
+    list = await r.json();
+  } catch (e) { if ($("#dlg")) dialog(`<h2>Verlauf</h2><p>${esc(navigator.onLine ? e.message : "Der Verlauf braucht eine Internetverbindung.")}</p><div class="row"><button class="btn" data-x>Schließen</button></div>`, d => d.querySelector("[data-x]").onclick = closeDialog); return; }
+  if (!$("#dlg") || S.open !== n) return;
+  const fmt = iso => new Date(iso).toLocaleString("de-DE", {day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit"});
+  dialog(`<h2>Verlauf</h2>${list.length ? `<p class="hint">${list.length === 1 ? "Eine gespeicherte Fassung" : list.length + " gespeicherte Fassungen"}, die neueste oben. Tippe auf eine, um sie anzusehen.</p>
+    <div class="hist">${list.map((c, i) => `<button class="histrow" data-sha="${esc(c.sha)}"><strong>${esc(fmt(c.commit.author.date))}</strong><span>${i === 0 ? "Aktuell auf GitHub" : esc(c.commit.message.split("\n")[0].replace(/^(Neu|Geändert|Gelöscht): /, ""))}</span></button>`).join("")}</div>`
+    : `<p>Noch keine gespeicherte Fassung auf GitHub.</p>`}<div class="row"><button class="btn" data-x>Schließen</button></div>`, d => {
+    d.querySelector("[data-x]").onclick = closeDialog;
+    d.querySelectorAll(".histrow").forEach(b => b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const r = await gh(`/contents/${encodeURIComponent("notes")}/${encodeURIComponent(n.id + ".md")}?ref=${b.dataset.sha}`);
+        if (!r.ok) throw new Error(await ghErr(r));
+        const old = fromMarkdown(b64ToText((await r.json()).content), n.id), when = b.querySelector("strong").textContent;
+        const preview = [old.title ? `<strong>${esc(old.title)}</strong>` : "", esc(old.body).slice(0, 1500), old.items.map(i => (i.d ? "☑ " : "☐ ") + esc(i.t)).join("<br>")].filter(Boolean).join("<br><br>");
+        dialog(`<h2>Fassung vom ${esc(when)}</h2><div class="histprev">${preview || "<em>Leer</em>"}</div><div class="row"><button class="btn" data-back>Zurück</button><button class="btn primary" data-ok>Wiederherstellen</button></div>`, d2 => {
+          d2.querySelector("[data-back]").onclick = () => historyDialog(n);
+          d2.querySelector("[data-ok]").onclick = () => {
+            const before = {title:n.title, body:n.body, items:n.items, tags:n.tags, kind:n.kind};
+            Object.assign(n, {title:old.title, body:old.body, items:old.items, tags:old.tags, kind:old.kind || ""});
+            closeDialog(); touch(n, {reclassify:false}); S.bodyEdit = false; renderEditor();
+            toast("Fassung wiederhergestellt.", "Rückgängig", () => { Object.assign(n, before); touch(n, {reclassify:false}); renderEditor(); });
+          };
+        });
+      } catch (e) { b.disabled = false; toast(e.message || "Konnte die Fassung nicht laden."); }
+    });
   });
 }
 function dialog(html, onBind){
