@@ -269,9 +269,19 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .mdh1{font-size:21px}.mdh3{font-size:17px}
 .mdli{display:inline-block;position:relative}
 .mdli::before{content:"•";display:inline-block;width:14px;margin-left:-14px;color:var(--faint)}
-.note{touch-action:pan-y;background:color-mix(in srgb,var(--area) 4%,var(--bg));position:relative}
-.note.sw-pin{box-shadow:inset 4px 0 0 color-mix(in srgb,var(--privat) calc(var(--sw)*100%),transparent)}
-.note.sw-arch{box-shadow:inset -4px 0 0 color-mix(in srgb,var(--freelance) calc(var(--sw)*100%),transparent)}
+.note{touch-action:pan-y;overflow:hidden}
+.note > :not(.swbg){position:relative;z-index:1}
+.note::before{transform:translateX(var(--barx,0px))}
+.note.sw-anim > :not(.swbg),.note.sw-anim::before{transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+.note.sw-anim .swbg{transition:width .24s cubic-bezier(.2,.8,.2,1)}
+.note.sw-collapse{transition:height .22s ease,padding .22s ease,border-color .22s ease;padding-top:0!important;padding-bottom:0!important;border-bottom-color:transparent}
+.swbg{position:absolute;top:0;bottom:0;width:0;display:flex;align-items:center;overflow:hidden;background:color-mix(in srgb,var(--c,var(--faint)) 16%,transparent);color:var(--c,var(--faint));pointer-events:none;z-index:0}
+.swbg.l{left:0;justify-content:flex-start}
+.swbg.r{right:0;justify-content:flex-end}
+.swbg.l,.swbg.r{box-sizing:border-box}
+.swbg svg{flex:none;margin:0 20px;transition:transform .15s ease;transform:scale(.8);opacity:.7}
+.swbg.over{background:var(--c);color:var(--bg)}
+.swbg.over svg{transform:scale(1.1);opacity:1}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -294,7 +304,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.7";
+const APP_VERSION = "1.8";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -359,7 +369,7 @@ const idb = (() => {
 })();
 
 const S = {
-  notes: new Map(), cfg: null, settings: {keywords: structuredClone(DEFAULT_KW), fallback:"privat", favTags:[], tabTags:["software"], _sha:null, _dirty:false},
+  notes: new Map(), cfg: null, settings: {keywords: structuredClone(DEFAULT_KW), fallback:"privat", favTags:[], tabTags:["software"], swipeR:"pin", swipeL:"archive", _sha:null, _dirty:false},
   pendingImg: [], deleteImg: [],
   view: {area:"alle", tag:null, q:"", archive:false, from:"", to:"", h1:null, h2:null, sort:"created", limit:150},
   open: null, status:"local", statusMsg:"", lastSync:0, ready:false, welcome:false
@@ -674,7 +684,7 @@ async function syncSettings(remote){
       const added = mine.filter(t => !base.includes(t)), removed = base.filter(t => !mine.includes(t));
       st.favTags = [...new Set([...theirs, ...added])].filter(t => !removed.includes(t));
     }
-    const r = await putFile(path, textToB64(JSON.stringify({keywords:st.keywords, fallback:st.fallback, favTags:st.favTags||[], tabTags:st.tabTags||[]}, null, 2)), rsha, "Einstellungen");
+    const r = await putFile(path, textToB64(JSON.stringify({keywords:st.keywords, fallback:st.fallback, favTags:st.favTags||[], tabTags:st.tabTags||[], swipeR:st.swipeR, swipeL:st.swipeL}, null, 2)), rsha, "Einstellungen");
     if (!r.ok) throw new Error(await ghErr(r));
     st._sha = (await r.json()).content.sha; st._dirty = false; st._baseFav = [...(st.favTags||[])];
     remote.set(path, st._sha);
@@ -682,6 +692,7 @@ async function syncSettings(remote){
     if (rc.keywords) st.keywords = rc.keywords; if (rc.fallback) st.fallback = rc.fallback;
     if (Array.isArray(rc.favTags)) st.favTags = rc.favTags;
     if (Array.isArray(rc.tabTags)) st.tabTags = rc.tabTags;
+    if (rc.swipeR) st.swipeR = rc.swipeR; if (rc.swipeL) st.swipeL = rc.swipeL;
     st._sha = rsha; st._baseFav = [...(st.favTags||[])];
   }
 }
@@ -814,32 +825,66 @@ function statusText(){
   return "Synchronisiert" + (S.lastSync ? " um " + new Date(S.lastSync).toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"}) : "");
 }
 
-/* ---------- Wischen: rechts anheften, links archivieren ---------- */
+/* ---------- Wischen (wie Gmail): Symbol dahinter, Aktion frei wählbar ---------- */
+const SWIPE = {
+  pin:{label:"Anheften", color:"var(--beruflich)", icon:'<path d="M12 17v5M9 3h6l-1 6 3 4H7l3-4-1-6z"/>'},
+  archive:{label:"Archivieren", color:"var(--privat)", icon:'<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>'},
+  delete:{label:"Löschen", color:"var(--danger)", icon:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>'},
+  none:{label:"Nichts", color:"var(--faint)", icon:""}
+};
+function swipeAct(n, act){
+  const undo = fn => () => { fn(); touch(n, {reclassify:false}); render(); };
+  if (act === "pin") { n.pinned = !n.pinned; touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", undo(() => n.pinned = !n.pinned)); }
+  else if (act === "archive") { n.archived = !n.archived; touch(n, {reclassify:false}); toast(n.archived ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", undo(() => n.archived = !n.archived)); }
+  else if (act === "delete") {
+    n._pendingDel = true;
+    const t = setTimeout(() => { if (n._pendingDel) { delete n._pendingDel; removeNote(n); render(); } }, 6000);
+    toast("Gelöscht.", "Rückgängig", () => { clearTimeout(t); delete n._pendingDel; render(); });
+  }
+}
 function bindSwipe(li){
-  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, pid = null;
-  const reset = () => { li.style.transform = ""; li.classList.remove("sw-pin", "sw-arch"); li.style.setProperty("--sw", "0"); };
-  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; });
+  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, pid = null, raf = 0;
+  const parts = () => [...li.children].filter(c => !c.classList.contains("swbg"));
+  const bgL = li.querySelector(".swbg.l"), bgR = li.querySelector(".swbg.r");
+  const actFor = d => d > 0 ? (S.settings.swipeR || "pin") : (S.settings.swipeL || "archive");
+  const paint = () => {
+    raf = 0; const a = actFor(dx), over = Math.abs(dx) > 90 && a !== "none";
+    parts().forEach(p => p.style.transform = `translateX(${dx}px)`);
+    li.style.setProperty("--barx", dx + "px");
+    const bg = dx > 0 ? bgL : bgR, other = dx > 0 ? bgR : bgL;
+    other.style.width = "0px";
+    bg.style.width = Math.abs(dx) + "px";
+    bg.style.setProperty("--c", SWIPE[a].color);
+    bg.classList.toggle("over", over);
+    bg.innerHTML = SWIPE[a].icon ? `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SWIPE[a].icon}</svg>` : "";
+  };
+  const springBack = () => {
+    li.classList.add("sw-anim"); dx = 0; paint();
+    setTimeout(() => { li.classList.remove("sw-anim"); [bgL, bgR].forEach(b => { b.style.width = "0px"; b.classList.remove("over"); }); }, 260);
+  };
+  li.addEventListener("pointerdown", e => { if (e.pointerType === "mouse" && e.button !== 0) return; x0 = e.clientX; y0 = e.clientY; dx = 0; active = true; decided = false; pid = e.pointerId; li.classList.remove("sw-anim"); });
   li.addEventListener("pointermove", e => {
     if (!active || e.pointerId !== pid) return;
     const mx = e.clientX - x0, my = e.clientY - y0;
-    if (!decided) { if (Math.abs(mx) < 12 && Math.abs(my) < 12) return; decided = true; if (Math.abs(my) > Math.abs(mx)) { active = false; return; } try { li.setPointerCapture(pid); } catch {} }
-    dx = Math.max(-140, Math.min(140, mx));
-    li.style.transition = "none"; li.style.transform = `translateX(${dx}px)`;
-    li.classList.toggle("sw-pin", dx > 0); li.classList.toggle("sw-arch", dx < 0);
-    li.style.setProperty("--sw", String(Math.min(1, Math.abs(dx) / 90)));
+    if (!decided) { if (Math.abs(mx) < 10 && Math.abs(my) < 10) return; decided = true; if (Math.abs(my) > Math.abs(mx)) { active = false; return; } try { li.setPointerCapture(pid); } catch {} }
+    const w = li.offsetWidth, lim = w * 0.75; // weicher Widerstand zum Ende hin
+    dx = Math.sign(mx) * (Math.abs(mx) < 120 ? Math.abs(mx) : 120 + (Math.abs(mx) - 120) * 0.55);
+    dx = Math.max(-lim, Math.min(lim, dx));
+    if (!raf) raf = requestAnimationFrame(paint);
   });
   const end = () => {
     if (!active) return; active = false;
-    li.style.transition = "transform .2s ease";
-    const n = S.notes.get(li.dataset.id);
-    if (decided && Math.abs(dx) > 90 && n) {
-      li._swiped = true; navigator.vibrate?.(12);
-      if (dx > 0) { n.pinned = !n.pinned; touch(n, {reclassify:false}); toast(n.pinned ? "Angeheftet." : "Gelöst.", "Rückgängig", () => { n.pinned = !n.pinned; touch(n, {reclassify:false}); render(); }); }
-      else { n.archived = !n.archived; touch(n, {reclassify:false}); toast(n.archived ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !n.archived; touch(n, {reclassify:false}); render(); }); }
-      reset(); render(); return;
-    }
     if (decided) li._swiped = true;
-    reset(); setTimeout(() => li._swiped = false, 50);
+    const n = S.notes.get(li.dataset.id), a = actFor(dx);
+    if (!(decided && Math.abs(dx) > 90 && n && a !== "none")) { springBack(); setTimeout(() => li._swiped = false, 50); return; }
+    navigator.vibrate?.(12);
+    // Zeile gleitet hinaus, dann schließt sich die Lücke weich
+    li.classList.add("sw-anim"); const dir = Math.sign(dx); dx = dir * li.offsetWidth; paint();
+    setTimeout(() => {
+      li.style.height = li.offsetHeight + "px"; li.offsetHeight;
+      li.classList.add("sw-collapse"); li.style.height = "0px";
+      setTimeout(() => swipeAct(n, a) || render(), 230);
+    }, 200);
   };
   li.addEventListener("pointerup", end); li.addEventListener("pointercancel", end);
 }
@@ -872,7 +917,7 @@ function timeLabel(){
 function visibleNotes(){
   const v = S.view, pq = parseQuery(v.q), key = v.sort === "created" ? "created" : "updated";
   return [...S.notes.values()].filter(n => {
-    if (n._deleted || isEmpty(n)) return false;
+    if (n._deleted || n._pendingDel || isEmpty(n)) return false;
     if (!!n.archived !== v.archive) return false;
     if (!inArea(n, v.area)) return false;
     if (v.tag && !n.tags.includes(v.tag)) return false;
@@ -938,7 +983,7 @@ function typeIcons(n, open, total){
 }
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
 function noteRow(n){
-  if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen">
+  if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen"><span class="swbg l"></span><span class="swbg r"></span>
     <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(plainMd(shortLinks(n.body.trim())))}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const tr = n.kind === "tree" ? parseTree(n.body) : null;
@@ -946,7 +991,7 @@ function noteRow(n){
   const autoTitle = !n.title.trim() && !tr && bodyLines.length > 1 && bodyLines[0].length <= 70;
   const title = n.title.trim() || (autoTitle ? bodyLines[0] : "");
   const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : (autoTitle ? bodyLines.slice(1) : bodyLines).join(" ") || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
-  return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen">
+  return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen"><span class="swbg l"></span><span class="swbg r"></span>
     <div>
       ${title ? `<p class="nt">${n.pinned ? ICON.pinSm : ""}${esc(title)}</p>` : ""}
       ${snippet ? `<p class="nb" ${title ? "" : 'style="color:var(--ink)"'}>${esc(snippet)}</p>` : (!title ? `<p class="nt untitled">${n.images.length ? "Bild" : "Aufnahme"}</p>` : "")}
@@ -1574,7 +1619,7 @@ function bindWelcome(){
 }
 function openSettings(){
   const kw = S.settings.keywords;
-  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["sort","Einsortieren"],["gh","GitHub"]];
+  const SECS = [["allg","Allgemein"],["look","Aussehen"],["tabs","Tabs"],["fav","Favoriten"],["swipe","Wischen"],["sort","Einsortieren"],["gh","GitHub"]];
   dialog(`<div class="snav"><div class="snavtop"><h2>Einstellungen</h2><button class="btn primary" id="sDone">Fertig</button></div>
     <nav class="schips" aria-label="Abschnitte">${SECS.map(([k,l], i) => `<button class="tag" data-sec="${k}" aria-pressed="${i === 0}">${l}</button>`).join("")}</nav></div>
     <section class="ssec" id="st-allg"><h3>Allgemein</h3>
@@ -1593,6 +1638,9 @@ function openSettings(){
     </section><section class="ssec" id="st-fav"><h3>Favoriten-Tags</h3>
     <p>Stehen immer vorne in der Filterzeile und lassen sich in jeder Notiz mit einem Tipp setzen. Auch per langem Druck auf einen Tag.</p>
     <input class="inp" id="favIn" value="${esc(favTags().map(t => "#"+t).join(" "))}" placeholder="#apps #idee" autocapitalize="off" autocomplete="off">
+    </section><section class="ssec" id="st-swipe"><h3>Wischen in der Liste</h3>
+    <p>Was passiert, wenn du eine Notiz zur Seite wischst.</p>
+    ${[["swipeR","Nach rechts"],["swipeL","Nach links"]].map(([k,l]) => `<label class="f">${l}</label><div class="chips">${Object.entries(SWIPE).map(([a,v]) => `<button class="tag" data-sw="${k}" data-act="${a}" aria-pressed="${(S.settings[k] || "none") === a}">${v.label}</button>`).join("")}</div>`).join("")}
     </section><section class="ssec" id="st-sort"><h3>Automatisch einsortieren</h3>
     <p>Kommt eines dieser Wörter vor, landet die Notiz im Bereich. Zusätzlich lernt Merkn aus deinen Tags. Mit Komma trennen.</p>
     ${AREAS.map(a => `<label class="f" for="kw-${a}"><span class="dot" data-a="${a}" style="display:inline-block;margin-right:6px"></span>${AREA_NAME[a]}</label><textarea class="inp" id="kw-${a}" style="min-height:70px">${esc((kw[a]||[]).join(", "))}</textarea>`).join("")}
@@ -1622,6 +1670,7 @@ function openSettings(){
       if (d.scrollTop + d.clientHeight >= d.scrollHeight - 4) cur = SECS[SECS.length-1][0];
       mark(cur);
     }, {passive:true});
+    d.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { S.settings[b.dataset.sw] = b.dataset.act; S.settings._dirty = true; persist(); scheduleSync(800); d.querySelectorAll(`[data-sw="${b.dataset.sw}"]`).forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelectorAll(".theme").forEach(b => b.onclick = () => { applyTheme(b.dataset.theme); d.querySelectorAll(".theme").forEach(x => x.setAttribute("aria-pressed", String(x === b))); });
     d.querySelector("#sImport").onclick = () => { closeDialog(); importDialog(); };
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
