@@ -256,6 +256,9 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .ssec{padding-top:18px}
 .ssec h3{font:650 17px/1.3 var(--display);margin:0 0 6px;letter-spacing:-.01em}
 .edbody,.item textarea{field-sizing:content}
+.edbody.read{white-space:pre-wrap;overflow-wrap:anywhere;cursor:text;min-height:60px}
+.lnk{color:var(--ink);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--ink) 35%,transparent);text-underline-offset:3px;text-decoration-thickness:1.5px}
+.lnk::before{content:"↗ ";color:var(--faint);font-size:.85em}
 .toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:15px;z-index:60;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px)}
 .toast button{font-weight:600;text-decoration:underline;text-underline-offset:3px}
 
@@ -278,7 +281,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.5";
+const APP_VERSION = "1.6";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -893,10 +896,10 @@ function typeIcons(n, open, total){
 const isCompact = n => n.tags.includes("gedanke") && !n.title.trim() && !n.images.length && !n.items.length && !(n.audio||[]).length;
 function noteRow(n){
   if (isCompact(n)) return `<li class="note compact" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="Gedanke vom ${esc(stamp(n.created))} öffnen">
-    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(n.body.trim())}</p></div></li>`;
+    <div><p class="ts">${n.pinned ? ICON.pinSm : ""}${typeIcons(n, 0, 0)}<time datetime="${esc(n.created)}">${stamp(n.created)}</time>${n.tags.map(t => `<span>#${esc(t)}</span>`).join("")}</p><p class="cb">${esc(shortLinks(n.body.trim()))}</p></div></li>`;
   const open = n.items.filter(i => !i.d).length, total = n.items.length;
   const tr = n.kind === "tree" ? parseTree(n.body) : null;
-  const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : n.body.trim() || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
+  const snippet = tr ? `${tr.map(x => x.name).join(" · ")} · ${treeStats(tr)} Einträge` : shortLinks(n.body.trim()) || n.items.filter(i => !i.d).slice(0,3).map(i => "☐ " + i.t).join("  ");
   const title = n.title.trim() || (n.body.trim() ? "" : "");
   return `<li class="note" data-a="${n.area}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title || "Notiz ohne Titel")} öffnen">
     <div>
@@ -1029,6 +1032,27 @@ function timeDialog(){
   });
 }
 
+/* ---------- Links: kurz anzeigen, anklickbar ---------- */
+const URL_RE = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
+function shortUrl(u){
+  try {
+    const x = new URL(u), host = x.hostname.replace(/^www\./, "");
+    let seg = decodeURIComponent(x.pathname).split("/").filter(t => t && !/^(dp|gp|aw|d|p|products|product|shop|en|de|eu|status|watch|video|b|r|s|share)$/i.test(t) && !/^[A-Z0-9]{8,}$/.test(t) && !/^\d+$/.test(t))[0] || "";
+    seg = seg.replace(/\.(html?|php)$/i, "").replace(/[-_+]+/g, " ").replace(/\s+/g, " ").trim();
+    if (seg.length > 22) seg = seg.slice(0, 21).trim() + "…";
+    return seg ? `${host} › ${seg}` : host;
+  } catch { return u.length > 40 ? u.slice(0, 39) + "…" : u; }
+}
+const shortLinks = t => String(t || "").replace(URL_RE, u => "🔗 " + shortUrl(u));
+function linkify(t){
+  let out = "", last = 0;
+  for (const m of String(t || "").matchAll(URL_RE)) {
+    out += esc(t.slice(last, m.index)) + `<a class="lnk" href="${esc(m[0])}" target="_blank" rel="noopener" title="${esc(m[0])}">${esc(shortUrl(m[0]))}</a>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(t.slice(last));
+}
+
 /* ---------- Baum ---------- */
 const slugify = t => norm(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
 function imageSlug(n, path){ const pre = `images/${n.id}-`; if (!path.startsWith(pre)) return ""; return path.slice(pre.length).replace(/-?[a-z0-9]{6}\.[a-z0-9]+$/, ""); }
@@ -1120,7 +1144,7 @@ function replaceDialog(n){
 let edSaveTimer;
 function openNote(n, isNew=false){
   if (!n) return;
-  S.open = n; S.openNew = isNew; S.showDone = false; S.treeEdit = isNew && n.kind === "tree"; treeOpen.clear(); infoOpen.clear();
+  S.open = n; S.openNew = isNew; S.showDone = false; S.bodyEdit = false; S.treeEdit = isNew && n.kind === "tree"; treeOpen.clear(); infoOpen.clear();
   if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i));
   history.pushState({ed:1}, "");
   renderEditor();
@@ -1180,6 +1204,7 @@ function renderEditor(keepFocus=false){
     <input id="edTitle" class="edtitle" placeholder="Titel" value="${esc(n.title)}" autocomplete="off" enterkeyhint="next">
     ${n.kind === "tree" ? `<div class="tbar"><button id="tOpen">Alles auf</button><button id="tClose">Alles zu</button>${S.treeEdit ? `<button id="tSort">A–Z</button>` : ""}<button id="tEdit" class="${S.treeEdit ? "on" : ""}">${S.treeEdit ? "Fertig" : "Bearbeiten"}</button></div>` : ""}
     ${n.kind === "tree" && !S.treeEdit ? `<div class="treewrap">${parseTree(n.body).length ? treeHTML(parseTree(n.body)) : `<p class="hint">Noch leer. Tippe auf „Bearbeiten“ und schreib eine eingerückte Liste.</p>`}</div>`
+      : n.kind !== "tree" && !S.bodyEdit && URL_RE.test(n.body) && (URL_RE.lastIndex = 0, true) ? `<div id="edRead" class="edbody read" tabindex="0" aria-label="Notiztext, tippen zum Bearbeiten">${linkify(n.body)}</div>`
       : `<textarea id="edBody" class="edbody${n.kind === "tree" ? " mono" : ""}" placeholder="${n.kind === "tree" ? "- Apps&#10;  - Merkn&#10;    version: 1.0&#10;    status: Beta&#10;    info: Notizen-App&#10;    link: hnnssth.github.io/merkn&#10;    seit: 11/2026" : "Notiz"}" rows="${n.items.length ? 1 : 3}" style="${n.items.length ? "min-height:40px" : ""}">${esc(n.body)}</textarea>`}
     ${n.items.length ? `<ul class="items">${openItems.map(itemHTML).join("")}</ul>
       <button class="additem" id="addItem">+ Eintrag</button>
@@ -1225,6 +1250,10 @@ function bindEditor(){
   ti.oninput = () => { n.title = ti.value; edChanged(); };
   ti.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); bo?.focus(); } };
   if (bo) bo.oninput = () => { n.body = bo.value; autosize(bo); edChanged(); };
+  const rd = $("#edRead");
+  const toEdit = () => { S.bodyEdit = true; renderEditor(); const t = $("#edBody"); if (t) { t.focus({preventScroll:true}); t.setSelectionRange(t.value.length, t.value.length); } };
+  if (rd) { rd.onclick = e => { if (e.target.closest("a")) return; toEdit(); }; rd.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); toEdit(); } }; }
+  if (bo && S.bodyEdit) bo.onblur = () => setTimeout(() => { if (S.open === n && document.activeElement !== $("#edBody") && !dict && S.bodyEdit) { S.bodyEdit = false; renderEditor(); } }, 200);
   if (n.kind === "tree") bindTree(el);
   el.querySelectorAll(".itxt").forEach(t => {
     const i = +t.dataset.idx;
@@ -1266,7 +1295,7 @@ $("#afile").onchange = e => { const f = [...e.target.files]; e.target.value = ""
 
 /* ---------- Diktat ---------- */
 let dict = null;
-function toggleDictation(){ if (dict) return stopDictation(); startDictation(); }
+function toggleDictation(){ if (dict) return stopDictation(); if (!$("#edBody") && $("#edRead")) { S.bodyEdit = true; renderEditor(); $("#edBody")?.focus({preventScroll:true}); } startDictation(); }
 function startDictation(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return;
   const n = S.open;
