@@ -408,7 +408,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.24";
+const APP_VERSION = "1.25";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1283,8 +1283,9 @@ function render(){
     + (xTrash.length ? `<p class="group xhead">Im Papierkorb · ${xTrash.length}</p><ul class="list dim">${xTrash.slice(0, 50).map(noteRow).join("")}</ul>` : "");
   if (v.tag && !tags.includes(v.tag)) v.tag = null;
   const pinned = list.filter(n => n.pinned), rest = list.filter(n => !n.pinned);
-  const archCount = [...S.notes.values()].filter(n => n.archived && !n.trashed && !n._deleted).length;
-  const trashCount = [...S.notes.values()].filter(n => n.trashed && !n._deleted).length;
+  // Zahlen folgen dem aktiven Filter (Bereich, Tag, Zeit); ohne Filter = alles
+  const archCount = v.archive || v.trash ? 0 : visibleNotes({archive:true, trash:false, limit:Infinity}).length;
+  const trashCount = v.archive || v.trash ? 0 : visibleNotes({trash:true, limit:Infinity}).length;
   const focused = document.activeElement && document.activeElement.id === "q";
   let body;
   if (!list.length) {
