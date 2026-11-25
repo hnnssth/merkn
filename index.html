@@ -240,7 +240,10 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .rdnote strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rdbtn{padding:8px 12px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:14px;cursor:pointer;white-space:nowrap}
 .rediscover:not(:has(.rdnote)) .rdbtn:first-child{flex:none}
-.rdx{padding:8px;display:grid;place-items:center}.rdx svg{width:16px;height:16px}
+.chkrow{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;margin-top:16px;cursor:pointer}
+.chkrow input{width:20px;height:20px;margin-top:1px;accent-color:var(--ink)}
+.chkrow strong{display:block;font-weight:600;font-size:15px}
+.chkrow small{display:block;color:var(--muted);font-size:13px}
 .taglist{display:flex;flex-direction:column;max-height:320px;overflow:auto;border-top:1px solid var(--line)}
 .tagrow{display:flex;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;text-align:left}
 .tagrow .tc{color:var(--faint);font-variant-numeric:tabular-nums}
@@ -380,7 +383,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.18";
+const APP_VERSION = "1.19";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -795,6 +798,76 @@ async function imageURL(path){
   if (!blob) return null;
   const u = URL.createObjectURL(blob); urlCache.set(path, u); return u;
 }
+async function fileBlob(path){
+  let blob = await idb.get("img:" + path);
+  if (!blob && S.cfg && navigator.onLine) {
+    try { const r = await gh(`/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(S.cfg.branch)}`, {headers:{Accept:"application/vnd.github.raw"}});
+      if (r.ok) { blob = new Blob([await r.blob()], {type: mimeFor(path)}); idb.set("img:" + path, blob); } } catch {}
+  }
+  return blob || null;
+}
+
+/* ---------- Backup als ZIP (ohne Komprimierung, ohne Bibliothek) ---------- */
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function makeZip(files){ // files: [{name, data:Uint8Array}]
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const d = new Date(), dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)), dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate());
+  for (const f of files) {
+    const nm = enc.encode(f.name), crc = crc32(f.data), h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, dt, true); h.setUint16(12, dd, true);
+    h.setUint32(14, crc, true); h.setUint32(18, f.data.length, true); h.setUint32(22, f.data.length, true); h.setUint16(26, nm.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), nm, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, dt, true); c.setUint16(14, dd, true);
+    c.setUint32(16, crc, true); c.setUint32(20, f.data.length, true); c.setUint32(24, f.data.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+    central.push(new Uint8Array(c.buffer), nm);
+    off += 30 + nm.length + f.data.length;
+  }
+  const csize = central.reduce((a, x) => a + x.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], {type:"application/zip"});
+}
+async function makeBackup(){
+  const enc = new TextEncoder(), notes = [...S.notes.values()].filter(n => !n._deleted), files = [];
+  for (const n of notes) files.push({name:`notes/${n.id}.md`, data:enc.encode(toMarkdown(n))});
+  files.push({name:"merkn-config.json", data:enc.encode(JSON.stringify({keywords:S.settings.keywords, fallback:S.settings.fallback, favTags:S.settings.favTags||[], tabTags:S.settings.tabTags||[], swipeR:S.settings.swipeR, swipeL:S.settings.swipeL}, null, 2))});
+  const media = [...new Set(notes.flatMap(n => [...n.images, ...(n.audio||[])]))]; let missing = 0, i = 0;
+  for (const p of media) {
+    i++; if (i % 5 === 0) setStatus("sync", `Backup: Dateien ${i} von ${media.length}`);
+    const b = await fileBlob(p); if (b) files.push({name:p, data:new Uint8Array(await b.arrayBuffer())}); else missing++;
+  }
+  files.push({name:"LIESMICH.txt", data:enc.encode(`Merkn-Backup vom ${new Date().toLocaleString("de-DE")}\n${notes.length} Notizen, ${media.length - missing} Bilder und Aufnahmen.\n\nWiederherstellen: ZIP entpacken, in Merkn unter Einstellungen → Allgemein → „Ordner importieren“ den entpackten Ordner wählen.\nJede Notiz ist eine lesbare Textdatei im Ordner notes.\n`)});
+  return {zip:makeZip(files), count:notes.length, media:media.length - missing, missing};
+}
+async function backupNow(){
+  toast("Backup wird erstellt …");
+  try {
+    const {zip, count, media, missing} = await makeBackup();
+    setStatus(S.cfg ? (([...S.notes.values()].some(n => n._dirty)) ? "pending" : "ok") : "local");
+    const name = `merkn-backup-${localDay(new Date())}.zip`, file = new File([zip], name, {type:"application/zip"});
+    try { localStorage.setItem("merkn-backup", localDay(new Date())); } catch {}
+    const mb = zip.size / 1048576, size = mb >= 1 ? `${mb.toLocaleString("de-DE", {maximumFractionDigits:1})} MB` : `${Math.max(1, Math.round(zip.size / 1024))} KB`;
+    const info = `${count} Notizen${media ? `, ${media} ${media === 1 ? "Datei" : "Dateien"}` : ""}, ${size}${missing ? ` (${missing} Bilder nicht erreichbar)` : ""}`;
+    if (navigator.canShare && navigator.canShare({files:[file]})) {
+      try { await navigator.share({files:[file], title:name}); toast(`Backup geteilt: ${info}.`); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    toast(`Backup heruntergeladen: ${info}.`);
+  } catch (e) { console.error(e); toast("Backup fehlgeschlagen: " + (e.message || e)); }
+}
+function backupReminder(){
+  if (!S.notes.size || S.welcome) return;
+  let last = "", shown = ""; try { last = localStorage.getItem("merkn-backup") || ""; shown = localStorage.getItem("merkn-backup-erinnert") || ""; } catch {}
+  const today = localDay(new Date()); if (shown === today) return;
+  const days = last ? Math.floor((Date.parse(today) - Date.parse(last)) / 864e5) : null;
+  if (days !== null && days < 30) return;
+  if (days === null && S.notes.size < 20) return;
+  try { localStorage.setItem("merkn-backup-erinnert", today); } catch {}
+  setTimeout(() => { let now = ""; try { now = localStorage.getItem("merkn-backup") || ""; } catch {} if (now !== last || S.open || $("#dlg")) return;
+    toast(days === null ? "Noch kein Backup erstellt." : `Letztes Backup vor ${days} Tagen.`, "Jetzt sichern", backupNow); }, 2500);
+}
 function mimeFor(p){ const e = p.split(".").pop().toLowerCase(); return ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",m4a:"audio/mp4",mp4:"audio/mp4",aac:"audio/aac",mp3:"audio/mpeg",wav:"audio/wav",ogg:"audio/ogg",opus:"audio/ogg",webm:"audio/webm",amr:"audio/amr","3gp":"audio/3gpp"})[e] || "application/octet-stream"; }
 function fillAudio(root=document){
   root.querySelectorAll("audio[data-path]").forEach(async a => { const u = await imageURL(a.dataset.path); if (u) a.src = u; });
@@ -1190,7 +1263,6 @@ function bindList(){
   const mb = $("#more"); if (mb) mb.onclick = () => { S.view.limit += 150; render(); };
   document.querySelectorAll("[data-rd]").forEach(b => b.onclick = () => openNote(S.notes.get(b.dataset.rd)));
   const rr = $("#rdRandom"); if (rr) rr.onclick = () => { const l = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !isEmpty(n)); if (l.length) openNote(l[Math.floor(Math.random() * l.length)]); };
-  const rh = $("#rdHide"); if (rh) rh.onclick = () => { try { localStorage.setItem("merkn-rd-hide", localDay(new Date())); } catch {} render(); };
   const ma = $("#moreAll"); if (ma) ma.onclick = () => { S.view.limit = Infinity; render(); };
   document.querySelectorAll(".area").forEach(b => b.onclick = () => { S.view.area = b.dataset.a; S.view.tag = null; S.view.limit = 150; render(); });
   document.querySelectorAll(".tag[data-t]").forEach(b => {
@@ -1728,16 +1800,17 @@ const FINDERS = {
     sub:(n, r) => r.sample}
 };
 // Wiederentdecken: „Heute vor … Jahren“ und eine zufällige Notiz
+const rdOn = () => { try { return localStorage.getItem("merkn-rd") !== "aus"; } catch { return true; } };
 function rediscoverHTML(){
   const v = S.view; if (v.q || v.archive || v.trash || v.tag || v.area !== "alle" || timeFilterActive() || S.sel) return "";
-  const today = localDay(new Date()); let hidden = ""; try { hidden = localStorage.getItem("merkn-rd-hide") || ""; } catch {}
-  if (hidden === today) return "";
+  if (!rdOn()) return "";
+  const today = localDay(new Date());
   const md = today.slice(5), y = +today.slice(0, 4);
   const old = [...S.notes.values()].filter(n => !n._deleted && !n.trashed && !isEmpty(n) && localDay(n.created).slice(5) === md && +localDay(n.created).slice(0, 4) < y);
   const pick = old.length ? old[(new Date().getDate()) % old.length] : null;
   const yrs = pick ? y - +localDay(pick.created).slice(0, 4) : 0;
   return `<div class="rediscover">${pick ? `<button class="rdnote" data-rd="${esc(pick.id)}"><small>Heute vor ${yrs} ${yrs === 1 ? "Jahr" : "Jahren"}${old.length > 1 ? ` · ${old.length} Notizen` : ""}</small><strong>${esc(pick.title || plainMd(pick.body).trim().split("\n")[0].slice(0, 80) || "Ohne Titel")}</strong></button>` : ""}
-    <button class="rdbtn" id="rdRandom">Zufällige Notiz</button><button class="rdbtn rdx" id="rdHide" aria-label="Für heute ausblenden" title="Für heute ausblenden">${ICON.x}</button></div>`;
+    <button class="rdbtn" id="rdRandom">Zufällige Notiz</button></div>`;
 }
 function tagCounts(){ const m = new Map(); for (const n of S.notes.values()) if (!n._deleted && !n.trashed) n.tags.forEach(t => m.set(t, (m.get(t) || 0) + 1)); return [...m].sort((a, b) => a[0].localeCompare(b[0], "de")); }
 function renameTag(from, to){
@@ -2011,11 +2084,13 @@ function openSettings(){
       <button class="btn" id="sPoems">Gedichte finden</button>
       <button class="btn" id="sQuotes">Zitate finden</button>
       <button class="btn" id="sDups">Doppelte finden</button>
+      <button class="btn" id="sBackup">Backup erstellen</button>
       ${S.cfg ? `<button class="btn" id="sSync">Jetzt synchronisieren</button>` : ""}
     </div>
     </section><section class="ssec" id="st-look"><h3>Aussehen</h3>
     <p>Gilt nur für dieses Gerät.</p>
     <div class="themes">${THEMES.map(([k,l,c]) => `<button class="theme" data-theme="${k}" aria-pressed="${(document.documentElement.dataset.theme||"auto") === k}"><span class="sw" style="background:${k === "auto" ? "linear-gradient(90deg,#F2F4F1 50%,#141917 50%)" : c[0]}"><i style="background:${c[2]}"></i><i style="background:${c[3]}"></i><i style="background:${c[4]}"></i><b style="background:${c[1]}"></b></span>${l}</button>`).join("")}</div>
+    <label class="chkrow"><input type="checkbox" id="sRd" ${rdOn() ? "checked" : ""}><span><strong>„Heute vor … Jahren“ und „Zufällige Notiz“</strong><small>Die Leiste oben in der Liste „Alle“.</small></span></label>
     </section><section class="ssec" id="st-tabs"><h3>Feste Tabs</h3>
     <p>Tags, die als eigener Reiter neben den Bereichen stehen.</p>
     <input class="inp" id="tabIn" value="${esc(tabTags().map(t => "#"+t).join(" "))}" placeholder="#software" autocapitalize="off" autocomplete="off">
@@ -2040,7 +2115,7 @@ function openSettings(){
       <button class="btn" id="sConn">${S.cfg ? "Verbindung speichern" : "Verbinden"}</button>
     </div>
     </section><section class="ssec" id="st-hilfe"><h3>Hilfe</h3>
-    <details class="help"><summary>Merkn an Freunde weitergeben</summary><dl><dt>1. Installieren</dt><dd>Link <b>hnnssth.github.io/merkn</b> schicken. <b>Android:</b> in Chrome öffnen, ⋮ antippen, „App installieren“ oder „Zum Startbildschirm hinzufügen“. <b>iPhone:</b> in Safari öffnen, Teilen-Symbol, „Zum Home-Bildschirm“. <b>Rechner:</b> in Chrome oder Edge das Installieren-Symbol in der Adresszeile.</dd><dt>2. Ohne Sync loslegen</dt><dd>Beim ersten Start „Erst mal ohne Sync“ wählen. Die Notizen bleiben dann nur auf diesem Gerät. Jeder hat seine eigenen Notizen, niemand sieht die eines anderen.</dd><dt>3. Sync zwischen Geräten (optional)</dt><dd>Wer Handy und Rechner abgleichen will, braucht ein kostenloses GitHub-Konto:<br>• Auf github.com anmelden und ein neues <b>privates</b> Repo anlegen, z. B. „merkn-daten“.<br>• Unter github.com/settings/personal-access-tokens einen <b>Fine-grained token</b> erstellen: nur dieses Repo auswählen, Berechtigung <b>Contents: Read and write</b>.<br>• In Merkn unter Einstellungen → GitHub Benutzername, Repo und Schlüssel eintragen und „Verbinden“ tippen.<br>• Auf jedem weiteren Gerät dasselbe eintragen.</dd><dt>Gut zu wissen</dt><dd>Updates kommen automatisch, einfach die App einmal schließen und neu öffnen. Der Schlüssel bleibt nur auf dem jeweiligen Gerät. Merkn läuft ohne KI und schickt nichts an Dritte, die Notizen liegen nur auf dem Gerät und im eigenen GitHub-Repo.</dd></dl><div class="row" style="justify-content:flex-start;margin:0 0 14px"><button class="btn" id="hShare">Link teilen</button></div></details><details class="help"><summary>Notizen anlegen und bearbeiten</summary><dl><dt>+ unten rechts</dt><dd>Neue Notiz. Am Rechner geht auch die Taste N.</dd><dt>Titel und Text</dt><dd>Wird beim Tippen gespeichert. Mit dem Pfeil oben links oder der Zurück-Geste schließt du die Notiz. Leere Notizen verschwinden von selbst.</dd><dt>Liste</dt><dd>Macht aus dem Text eine Checkliste. Abgehakte Punkte rutschen nach unten und lassen sich einklappen.</dd><dt>Bild, Audio, Diktat</dt><dd>Über die Leiste unten in der Notiz. Diktat schreibt mit, was du sprichst.</dd><dt>Anheften</dt><dd>Pinnadel oben in der Notiz. Angeheftete Notizen stehen oben in der Liste; der Bereich lässt sich mit dem Pfeil zuklappen.</dd><dt>Bereich</dt><dd>Der Knopf oben in der Notiz (Privat, Beruflich, Freelance). „auto“ heißt: Merkn sortiert selbst ein, nach den Wörtern unter Einstellungen → Einsortieren.</dd></dl></details><details class="help"><summary>Text gestalten</summary><dl><dt>**fett**</dt><dd>Zwei Sternchen davor und dahinter.</dd><dt># Überschrift</dt><dd>Eine Raute und ein Leerzeichen am Zeilenanfang, ## für kleiner.</dd><dt>- Punkt</dt><dd>Strich und Leerzeichen am Zeilenanfang ergibt eine Aufzählung; Einrücken geht mit Leerzeichen.</dd><dt>Links</dt><dd>Webadressen werden kurz angezeigt und sind antippbar.</dd><dt>[[Titel]]</dt><dd>Link auf eine andere Notiz mit diesem Titel. Grau heißt: gibt es noch nicht, antippen legt sie an.</dd><dt>Zum Bearbeiten</dt><dd>Gestalteten Text einmal antippen, dann siehst du ihn wieder als normalen Text.</dd></dl></details><details class="help"><summary>Tags</summary><dl><dt>#wort im Text</dt><dd>Wird automatisch zum Tag. Umlaute bleiben erhalten.</dd><dt>Tag-Chips unter der Suche</dt><dd>Antippen filtert. Lange drücken macht einen Tag zum Favoriten (Stern); Favoriten stehen vorn und werden in jeder Notiz vorgeschlagen.</dd><dt>Tabs</dt><dd>Unter Einstellungen → Tabs bekommt ein Tag einen eigenen Reiter neben den Bereichen, z. B. Software.</dd></dl></details><details class="help"><summary>Suchen und filtern</summary><dl><dt>Suche</dt><dd>Durchsucht Titel, Text, Listen und Tags, dazu Archiv und Papierkorb. Treffer sind gelb markiert.</dd><dt>#tag</dt><dd>Sucht nur in Tags. #bucher findet auch #bücher.</dd><dt>2019</dt><dd>Eine Jahreszahl filtert nach dem Jahr.</dd><dt>20-24 uhr</dt><dd>Filtert nach der Uhrzeit, zu der eine Notiz entstanden ist.</dd><dt>Zeit</dt><dd>Der Knopf unter der Suche: Jahr, Zeitraum, Uhrzeit und Sortierung.</dd></dl></details><details class="help"><summary>In der Liste</summary><dl><dt>Wischen</dt><dd>Nach rechts oder links wischen löst eine Aktion aus, standardmäßig Anheften und Archivieren. Einstellen unter Einstellungen → Wischen.</dd><dt>Lange drücken</dt><dd>Eintrag 2 Sekunden halten: Er wackelt, dann fragt Merkn, ob er gelöscht werden soll.</dd><dt>Mehrere auswählen</dt><dd>Häkchen-Symbol oben. Dann Notizen antippen und gemeinsam taggen, verschieben, archivieren oder löschen.</dd><dt>Pfeil nach oben / unten</dt><dd>Erscheint, wenn du in einer langen Liste mehrmals in eine Richtung scrollst.</dd><dt>Alle anzeigen</dt><dd>Ganz unten, wenn die Liste länger als 150 Einträge ist.</dd></dl></details><details class="help"><summary>Archiv, Papierkorb, Verlauf</summary><dl><dt>Archiv</dt><dd>Über das ⋯-Menü einer Notiz oder per Wischen. Der Link „Archiv“ steht unten in der Liste.</dd><dt>Löschen</dt><dd>Legt die Notiz in den Papierkorb, 5 Sekunden lang lässt sich das rückgängig machen. Nach 30 Tagen wird sie endgültig entfernt.</dd><dt>Papierkorb</dt><dd>Link unten in der Liste. Dort wiederherstellen, endgültig löschen oder leeren.</dd><dt>Verlauf</dt><dd>⋯-Menü einer Notiz. Zeigt frühere Fassungen von GitHub und holt eine zurück. Braucht Internet.</dd></dl></details><details class="help"><summary>Bäume</summary><dl><dt>Als Baum anzeigen</dt><dd>⋯-Menü einer Notiz. Eingerückte Zeilen mit „- Name“ werden zu einem aufklappbaren Baum.</dd><dt>Eigenschaften</dt><dd>Unter einem Eintrag z. B. „version: 1.0“, „status: Fertig“, „info: …“, „link: …“, „seit: …“, „stand: …“, „bild: …“.</dd></dl></details><details class="help"><summary>Werkzeuge</summary><dl><dt>Gedichte finden</dt><dd>Einstellungen → Allgemein. Sucht gereimte Notizen und vergibt nach deiner Prüfung #lyrik.</dd><dt>Zitate finden</dt><dd>Einstellungen → Allgemein. Sucht Notizen mit Anführungszeichen und vergibt nach deiner Prüfung #zitat.</dd><dt>An Claude übergeben</dt><dd>Pfeil-Symbol oben kopiert alle Notizen der aktuellen Ansicht; im ⋯-Menü einer Notiz nur diese.</dd><dt>Von Claude übernehmen</dt><dd>Einstellungen → Allgemein. Fügt ein, was Claude geschrieben hat. „Inhalt ersetzen“ im ⋯-Menü ersetzt eine Notiz.</dd><dt>Doppelte finden</dt><dd>Einstellungen → Allgemein. Findet Notizen mit gleichem oder fast gleichem Inhalt; die neueste bleibt, die anderen kommen nach deiner Prüfung in den Papierkorb.</dd><dt>Tags umbenennen und teilen</dt><dd>Einstellungen → Tags. Einen Tag antippen: umbenennen, mit einem anderen zusammenführen, alle Notizen damit als Sammlung teilen oder drucken.</dd><dt>Teilen</dt><dd>⋯-Menü einer Notiz öffnet das Teilen-Menü des Handys, z. B. für WhatsApp oder Mail.</dd><dt>Heute vor … Jahren</dt><dd>Oben in der Liste „Alle“ erscheint eine Notiz von diesem Tag in einem früheren Jahr, daneben „Zufällige Notiz“. Mit dem X für heute ausblenden.</dd><dt>Ordner importieren</dt><dd>Einstellungen → Allgemein. Liest einen Ordner mit Notiz-Dateien ein, z. B. aus Google Keep.</dd></dl></details><details class="help"><summary>Sync und Tastatur</summary><dl><dt>Punkt oben</dt><dd>Grün: alles synchron. Orange: Änderungen warten. Rot: Fehler, antippen für Details. Grau: nicht mit GitHub verbunden. Antippen synchronisiert sofort.</dd><dt>GitHub</dt><dd>Notizen liegen in deinem privaten Repo. Der Schlüssel bleibt nur auf diesem Gerät.</dd><dt>⌘K / Strg+K</dt><dd>Springt in die Suche.</dd><dt>N</dt><dd>Neue Notiz.</dd><dt>Esc</dt><dd>Schließt die offene Notiz.</dd></dl></details>
+    <details class="help"><summary>Merkn an Freunde weitergeben</summary><dl><dt>1. Installieren</dt><dd>Link <b>hnnssth.github.io/merkn</b> schicken. <b>Android:</b> in Chrome öffnen, ⋮ antippen, „App installieren“ oder „Zum Startbildschirm hinzufügen“. <b>iPhone:</b> in Safari öffnen, Teilen-Symbol, „Zum Home-Bildschirm“. <b>Rechner:</b> in Chrome oder Edge das Installieren-Symbol in der Adresszeile.</dd><dt>2. Ohne Sync loslegen</dt><dd>Beim ersten Start „Erst mal ohne Sync“ wählen. Die Notizen bleiben dann nur auf diesem Gerät. Jeder hat seine eigenen Notizen, niemand sieht die eines anderen.</dd><dt>3. Sync zwischen Geräten (optional)</dt><dd>Wer Handy und Rechner abgleichen will, braucht ein kostenloses GitHub-Konto:<br>• Auf github.com anmelden und ein neues <b>privates</b> Repo anlegen, z. B. „merkn-daten“.<br>• Unter github.com/settings/personal-access-tokens einen <b>Fine-grained token</b> erstellen: nur dieses Repo auswählen, Berechtigung <b>Contents: Read and write</b>.<br>• In Merkn unter Einstellungen → GitHub Benutzername, Repo und Schlüssel eintragen und „Verbinden“ tippen.<br>• Auf jedem weiteren Gerät dasselbe eintragen.</dd><dt>Gut zu wissen</dt><dd>Updates kommen automatisch, einfach die App einmal schließen und neu öffnen. Der Schlüssel bleibt nur auf dem jeweiligen Gerät. Merkn läuft ohne KI und schickt nichts an Dritte, die Notizen liegen nur auf dem Gerät und im eigenen GitHub-Repo.</dd></dl><div class="row" style="justify-content:flex-start;margin:0 0 14px"><button class="btn" id="hShare">Link teilen</button></div></details><details class="help"><summary>Notizen anlegen und bearbeiten</summary><dl><dt>+ unten rechts</dt><dd>Neue Notiz. Am Rechner geht auch die Taste N.</dd><dt>Titel und Text</dt><dd>Wird beim Tippen gespeichert. Mit dem Pfeil oben links oder der Zurück-Geste schließt du die Notiz. Leere Notizen verschwinden von selbst.</dd><dt>Liste</dt><dd>Macht aus dem Text eine Checkliste. Abgehakte Punkte rutschen nach unten und lassen sich einklappen.</dd><dt>Bild, Audio, Diktat</dt><dd>Über die Leiste unten in der Notiz. Diktat schreibt mit, was du sprichst.</dd><dt>Anheften</dt><dd>Pinnadel oben in der Notiz. Angeheftete Notizen stehen oben in der Liste; der Bereich lässt sich mit dem Pfeil zuklappen.</dd><dt>Bereich</dt><dd>Der Knopf oben in der Notiz (Privat, Beruflich, Freelance). „auto“ heißt: Merkn sortiert selbst ein, nach den Wörtern unter Einstellungen → Einsortieren.</dd></dl></details><details class="help"><summary>Text gestalten</summary><dl><dt>**fett**</dt><dd>Zwei Sternchen davor und dahinter.</dd><dt># Überschrift</dt><dd>Eine Raute und ein Leerzeichen am Zeilenanfang, ## für kleiner.</dd><dt>- Punkt</dt><dd>Strich und Leerzeichen am Zeilenanfang ergibt eine Aufzählung; Einrücken geht mit Leerzeichen.</dd><dt>Links</dt><dd>Webadressen werden kurz angezeigt und sind antippbar.</dd><dt>[[Titel]]</dt><dd>Link auf eine andere Notiz mit diesem Titel. Grau heißt: gibt es noch nicht, antippen legt sie an.</dd><dt>Zum Bearbeiten</dt><dd>Gestalteten Text einmal antippen, dann siehst du ihn wieder als normalen Text.</dd></dl></details><details class="help"><summary>Tags</summary><dl><dt>#wort im Text</dt><dd>Wird automatisch zum Tag. Umlaute bleiben erhalten.</dd><dt>Tag-Chips unter der Suche</dt><dd>Antippen filtert. Lange drücken macht einen Tag zum Favoriten (Stern); Favoriten stehen vorn und werden in jeder Notiz vorgeschlagen.</dd><dt>Tabs</dt><dd>Unter Einstellungen → Tabs bekommt ein Tag einen eigenen Reiter neben den Bereichen, z. B. Software.</dd></dl></details><details class="help"><summary>Suchen und filtern</summary><dl><dt>Suche</dt><dd>Durchsucht Titel, Text, Listen und Tags, dazu Archiv und Papierkorb. Treffer sind gelb markiert.</dd><dt>#tag</dt><dd>Sucht nur in Tags. #bucher findet auch #bücher.</dd><dt>2019</dt><dd>Eine Jahreszahl filtert nach dem Jahr.</dd><dt>20-24 uhr</dt><dd>Filtert nach der Uhrzeit, zu der eine Notiz entstanden ist.</dd><dt>Zeit</dt><dd>Der Knopf unter der Suche: Jahr, Zeitraum, Uhrzeit und Sortierung.</dd></dl></details><details class="help"><summary>In der Liste</summary><dl><dt>Wischen</dt><dd>Nach rechts oder links wischen löst eine Aktion aus, standardmäßig Anheften und Archivieren. Einstellen unter Einstellungen → Wischen.</dd><dt>Lange drücken</dt><dd>Eintrag 2 Sekunden halten: Er wackelt, dann fragt Merkn, ob er gelöscht werden soll.</dd><dt>Mehrere auswählen</dt><dd>Häkchen-Symbol oben. Dann Notizen antippen und gemeinsam taggen, verschieben, archivieren oder löschen.</dd><dt>Pfeil nach oben / unten</dt><dd>Erscheint, wenn du in einer langen Liste mehrmals in eine Richtung scrollst.</dd><dt>Alle anzeigen</dt><dd>Ganz unten, wenn die Liste länger als 150 Einträge ist.</dd></dl></details><details class="help"><summary>Archiv, Papierkorb, Verlauf</summary><dl><dt>Archiv</dt><dd>Über das ⋯-Menü einer Notiz oder per Wischen. Der Link „Archiv“ steht unten in der Liste.</dd><dt>Löschen</dt><dd>Legt die Notiz in den Papierkorb, 5 Sekunden lang lässt sich das rückgängig machen. Nach 30 Tagen wird sie endgültig entfernt.</dd><dt>Papierkorb</dt><dd>Link unten in der Liste. Dort wiederherstellen, endgültig löschen oder leeren.</dd><dt>Verlauf</dt><dd>⋯-Menü einer Notiz. Zeigt frühere Fassungen von GitHub und holt eine zurück. Braucht Internet.</dd></dl></details><details class="help"><summary>Bäume</summary><dl><dt>Als Baum anzeigen</dt><dd>⋯-Menü einer Notiz. Eingerückte Zeilen mit „- Name“ werden zu einem aufklappbaren Baum.</dd><dt>Eigenschaften</dt><dd>Unter einem Eintrag z. B. „version: 1.0“, „status: Fertig“, „info: …“, „link: …“, „seit: …“, „stand: …“, „bild: …“.</dd></dl></details><details class="help"><summary>Werkzeuge</summary><dl><dt>Gedichte finden</dt><dd>Einstellungen → Allgemein. Sucht gereimte Notizen und vergibt nach deiner Prüfung #lyrik.</dd><dt>Zitate finden</dt><dd>Einstellungen → Allgemein. Sucht Notizen mit Anführungszeichen und vergibt nach deiner Prüfung #zitat.</dd><dt>An Claude übergeben</dt><dd>Pfeil-Symbol oben kopiert alle Notizen der aktuellen Ansicht; im ⋯-Menü einer Notiz nur diese.</dd><dt>Von Claude übernehmen</dt><dd>Einstellungen → Allgemein. Fügt ein, was Claude geschrieben hat. „Inhalt ersetzen“ im ⋯-Menü ersetzt eine Notiz.</dd><dt>Doppelte finden</dt><dd>Einstellungen → Allgemein. Findet Notizen mit gleichem oder fast gleichem Inhalt; die neueste bleibt, die anderen kommen nach deiner Prüfung in den Papierkorb.</dd><dt>Tags umbenennen und teilen</dt><dd>Einstellungen → Tags. Einen Tag antippen: umbenennen, mit einem anderen zusammenführen, alle Notizen damit als Sammlung teilen oder drucken.</dd><dt>Teilen</dt><dd>⋯-Menü einer Notiz öffnet das Teilen-Menü des Handys, z. B. für WhatsApp oder Mail.</dd><dt>Heute vor … Jahren</dt><dd>Oben in der Liste „Alle“ erscheint eine Notiz von diesem Tag in einem früheren Jahr, daneben „Zufällige Notiz“. Ein- und ausschalten unter Einstellungen → Aussehen.</dd><dt>Backup erstellen</dt><dd>Einstellungen → Allgemein. Packt alle Notizen, Bilder und Aufnahmen in eine ZIP-Datei und öffnet das Teilen-Menü, z. B. „In Drive speichern“. Nach 30 Tagen ohne Backup erinnert Merkn einmal daran. Zurückholen: ZIP entpacken und mit „Ordner importieren“ einlesen.</dd><dt>Ordner importieren</dt><dd>Einstellungen → Allgemein. Liest einen Ordner mit Notiz-Dateien ein, z. B. aus Google Keep.</dd></dl></details><details class="help"><summary>Sync und Tastatur</summary><dl><dt>Punkt oben</dt><dd>Grün: alles synchron. Orange: Änderungen warten. Rot: Fehler, antippen für Details. Grau: nicht mit GitHub verbunden. Antippen synchronisiert sofort.</dd><dt>GitHub</dt><dd>Notizen liegen in deinem privaten Repo. Der Schlüssel bleibt nur auf diesem Gerät.</dd><dt>⌘K / Strg+K</dt><dd>Springt in die Suche.</dd><dt>N</dt><dd>Neue Notiz.</dd><dt>Esc</dt><dd>Schließt die offene Notiz.</dd></dl></details>
     <p class="hint" style="margin-top:18px">Merkn ${APP_VERSION}</p></section>`, d => {
     d.classList.add("settings");
     const nav = d.querySelector(".snav"), chips = [...d.querySelectorAll("[data-sec]")];
@@ -2065,6 +2140,8 @@ function openSettings(){
     d.querySelector("#sPoems").onclick = () => { closeDialog(); findDialog("lyrik"); };
     d.querySelector("#sQuotes").onclick = () => { closeDialog(); findDialog("zitat"); };
     d.querySelector("#hShare").onclick = () => shareText("Merkn", "Merkn – minimalistische Notizen-App ohne KI. Im Browser öffnen und zum Startbildschirm hinzufügen:\nhttps://hnnssth.github.io/merkn/");
+    d.querySelector("#sRd").onchange = e => { try { localStorage.setItem("merkn-rd", e.target.checked ? "an" : "aus"); } catch {} render(); };
+    d.querySelector("#sBackup").onclick = () => { closeDialog(); backupNow(); };
     d.querySelector("#sDups").onclick = () => { closeDialog(); dupDialog(); };
     d.querySelectorAll("[data-tagrow]").forEach(b => b.onclick = () => { closeDialog(); tagDialog(b.dataset.tagrow); });
     d.querySelector("#sFolder").onclick = () => { closeDialog(); $("#dfile").click(); };
@@ -2148,6 +2225,7 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
     try { localStorage.setItem("merkn-umlaut-fix", "1"); } catch {}
   }
   S.ready = true; setStatus(S.cfg ? "pending" : "local"); render();
+  backupReminder();
   if (S.cfg) sync();
   checkShareInbox();
   if (location.search.includes("share")) history.replaceState(null, "", location.pathname);
