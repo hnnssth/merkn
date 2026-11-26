@@ -415,7 +415,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.31";
+const APP_VERSION = "1.32";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -2407,6 +2407,14 @@ document.addEventListener("paste", e => { if (!S.open) return; const fs = [...(e
   } catch (e) { console.warn("Speicher nicht verfügbar", e); }
   applyTheme(document.documentElement.dataset.theme || "auto");
   purgeTrash();
+  // Einmalig: Bäume mit Häkchen, die eine Version vor 1.28 zerlegt hat (Häkchen als Checkliste unter dem Baum),
+  // frisch von GitHub holen. Die lokale, kaputte Fassung wird dabei verworfen.
+  if (!localStorage.getItem("merkn-tree-refetch") && S.cfg) {
+    let k = 0;
+    for (const n of S.notes.values()) if (!n._deleted && n.kind === "tree" && n.items.length && n._sha) { n._sha = "neu-laden"; n._dirty = false; k++; }
+    if (k) persist();
+    try { localStorage.setItem("merkn-tree-refetch", "1"); } catch {}
+  }
   // Einmalig: Tags, die früher ohne Umlaut gespeichert wurden, aus dem Text wiederherstellen
   if (!localStorage.getItem("merkn-umlaut-fix")) {
     const map = {};
