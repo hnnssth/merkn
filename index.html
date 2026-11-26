@@ -421,7 +421,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.34";
+const APP_VERSION = "1.35";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1320,7 +1320,7 @@ function render(){
       for (const n of shown) { const d = new Date(n.created), m = d.toLocaleDateString("de-DE",{month:"long",year:"numeric"}); if (m !== cur) { flush(); cur = m; } buf.push(noteRow(n)); }
       flush();
     } else groups = (pinned.length && shown.length ? '<p class="group">Weitere</p>' : "") + `<ul class="list">${shown.map(noteRow).join("")}</ul>`;
-    const pc = pinsCollapsed();
+    const pc = pinsCollapsed() && !v.q.trim(); // bei einer Suche angeheftete Treffer immer zeigen
     body = (pinned.length ? `<button class="group pinhead" id="pinToggle" aria-expanded="${!pc}">${ICON.pinSm}Angeheftet <span class="pincount">${pinned.length}</span><span class="pinchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" style="transform:rotate(${pc ? -90 : 0}deg)"><path d="M3 7h18L12 19z"/></svg></span></button>${pc ? "" : `<ul class="list pinned">${(S.pinAll ? pinned : pinned.slice(0, 5)).map(n => noteRow(n)).join("")}</ul>${pinned.length > 5 ? `<button class="more pinmore" id="pinAll">${S.pinAll ? "Weniger anzeigen" : `Alle ${pinned.length} anzeigen`}</button>` : ""}`}` : "") + groups
       + (rest.length > shown.length ? `<div class="morerow"><button class="more" id="more">Weitere ${Math.min(150, rest.length - shown.length)} anzeigen</button>${rest.length - shown.length > 150 ? `<button class="more" id="moreAll">Alle ${rest.length - shown.length} anzeigen</button>` : ""}</div>` : "")
       + `<div class="endrow"><p class="countline">${searching ? "" : `${list.length} ${list.length === 1 ? "Notiz" : "Notizen"}`}</p>${list.length > 8 ? `<button class="totop" id="toTop">Nach oben <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>` : ""}</div>`;
