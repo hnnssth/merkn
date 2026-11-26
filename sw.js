@@ -1,5 +1,5 @@
 // Merkn – Offline-Unterstützung. App-Dateien: erst Netz, sonst Cache. Schriften: aus dem Cache.
-const CACHE = "merkn-1.27";
+const CACHE = "merkn-1.28";
 const SHELL = ["./", "index.html", "manifest.json", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
