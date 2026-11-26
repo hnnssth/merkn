@@ -415,7 +415,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.30";
+const APP_VERSION = "1.31";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1520,7 +1520,9 @@ function treeStats(nodes){ let c = 0; const walk = ns => ns.forEach(n => { c++; 
 function statusClass(st){ const s = norm(st); return /alpha/.test(s) ? "alpha" : /beta/.test(s) ? "beta" : /(fertig|stabil|live|release)/.test(s) ? "done" : /(archiv|alt|pausiert|eingestellt)/.test(s) ? "old" : "other"; }
 const treeOpen = new Set(), infoOpen = new Set();
 function treeHTML(nodes, path=""){
-  return `<ul class="tree">${nodes.map((n, i) => {
+  // Abgehakte Einträge ans Ende des Astes (nur Anzeige; die Pfad-Nummer bleibt die ursprüngliche)
+  const order = nodes.map((n, i) => [n, i]).sort((a, b) => (a[0].check === true) - (b[0].check === true) || a[1] - b[1]);
+  return `<ul class="tree">${order.map(([n, i]) => {
     const img = S.open ? treeImage(S.open, n) : null;
     const id = path + "/" + i, kids = n.children.length, hasInfo = Object.keys(n.props).filter(k => k !== "bild").length > 0 || !!img;
     const open = treeOpen.has(id), info = infoOpen.has(id), p = n.props;
