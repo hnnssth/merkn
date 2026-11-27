@@ -261,7 +261,7 @@ textarea.inp{resize:vertical;min-height:90px;line-height:1.45}
 .shufsign.arch svg{width:36px;height:36px}.shufsign span{font-size:12px;font-weight:650}
 .shufsign.ready{transform:translate(-50%,-50%) scale(1.05)}
 .shufbar button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
-.ed{touch-action:pan-y}
+.ed,.ed textarea,.ed .edbody{touch-action:pan-y}
 #editor.deck{background:color-mix(in srgb,var(--ink) 14%,var(--bg));overflow:hidden}
 .ed.card{background:var(--sheet);border-radius:22px;box-shadow:0 14px 40px rgba(0,0,0,.22),0 0 0 1px var(--line);transform-origin:50% 80%;will-change:transform}
 .ed.back{transition:transform .2s cubic-bezier(.2,.9,.3,1.2)}
@@ -510,7 +510,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.45";
+const APP_VERSION = "1.46";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1887,8 +1887,11 @@ function bindShuffle(el){
   // Karte: folgt dem Finger 1:1, kippt leicht, fliegt beim Loslassen aus dem Bild
   const card = on => { el.classList.toggle("deck", on); ed.classList.toggle("card", on); };
   const move = (g, x, y) => { const dx = x - g.x, dy = y - g.y;
-    if (!g.dir && Math.hypot(dx, dy) > (g.onText ? 18 : 8)) { g.dir = Math.abs(dx) > Math.abs(dy) * (g.onText ? 1.6 : 1) ? "h" : (vOk(g, dy) && !g.onText ? "v" : "x");
+    // Richtung früh festlegen; auf langem Text reicht eine überwiegend waagerechte Bewegung
+    if (!g.dir && Math.hypot(dx, dy) > (g.onText ? 12 : 8)) { g.dir = Math.abs(dx) > Math.abs(dy) * (g.onText ? 1.15 : 1) ? "h" : (vOk(g, dy) && !g.onText ? "v" : "x");
       if (g.dir === "h" && document.activeElement?.matches?.("textarea,input")) document.activeElement.blur(); }
+    // Anfangs leicht senkrecht, dann klar seitwärts: doch noch zur Karte werden
+    if (g.dir === "x" && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) { g.dir = "h"; g.x2 = dx; if (document.activeElement?.matches?.("textarea,input")) document.activeElement.blur(); }
     if (g.dir === "h") { card(true); ed.style.transform = `translate(${dx}px, ${dy * .15}px) rotate(${dx * .04}deg) scale(.94)`; showSign(dx > 0 ? "yes" : "no", (Math.abs(dx) - 8) / 70); }
     else if (g.dir === "v" && dy > 0) { card(true); ed.style.transform = `translate(${dx * .15}px, ${dy}px) scale(.94)`; showSign("arch", (dy - 8) / 90); }
     else if (g.dir === "v") { ed.style.transform = "translate(0,0) scale(.94)"; showSign(""); } };
@@ -1900,7 +1903,7 @@ function bindShuffle(el){
     ed.classList.add("back"); ed.style.transform = ""; showSign(""); setTimeout(() => { ed.classList.remove("back"); card(false); }, 200); };
   let g = null;
   el.ontouchstart = e => { const t = e.touches[0]; g = e.touches.length === 1 ? start(t.clientX, t.clientY, e.target, true) : null; if (g) g.onText = !!e.target.closest("textarea"); };
-  el.ontouchmove = e => { if (!g) return; const t = e.touches[0]; move(g, t.clientX, t.clientY); if ((g.dir === "h" || g.dir === "v") && e.cancelable) e.preventDefault(); if (g.dir === "x") g = null; };
+  el.ontouchmove = e => { if (!g) return; const t = e.touches[0]; move(g, t.clientX, t.clientY); if ((g.dir === "h" || g.dir === "v") && e.cancelable) e.preventDefault(); };
   el.ontouchend = e => { if (!g) return; const t = e.changedTouches[0]; end(g, t.clientX, t.clientY); g = null; };
   el.ontouchcancel = () => { g = null; ed.style.transform = ""; showSign(""); card(false); };
   // Maus (PC): ziehen mit gedrückter Taste
