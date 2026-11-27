@@ -291,7 +291,7 @@ body:has(.selbar) .toast{bottom:calc(150px + env(safe-area-inset-bottom))}
 .rediscover{display:flex;align-items:stretch;gap:6px;margin:14px 0 4px}
 .rdnote{flex:1;min-width:0;text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:12px;cursor:pointer}
 .rdnote small{display:block;color:var(--muted);font-size:12px}
-.rdnote strong{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rdnote strong{display:block;font-family:var(--nfd);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rdbtn{padding:8px 12px;border:1px solid var(--line);border-radius:12px;color:var(--muted);font-size:14px;cursor:pointer;white-space:nowrap}
 .rediscover:not(:has(.rdnote)) .rdbtn:first-child{flex:none}
 .dialog.statsdlg{width:min(560px,calc(100vw - 32px))}
@@ -429,7 +429,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 .tstat.alpha{--c:var(--freelance)}.tstat.beta{--c:var(--beruflich)}.tstat.done{--c:var(--privat)}.tstat.old{--c:var(--faint)}
 .tinfo{flex:none;width:24px;height:24px;border-radius:12px;border:1px solid var(--line);color:var(--faint);font:600 12px/1 var(--text);display:grid;place-items:center}
 .tinfo.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.tcard{margin:2px 0 8px 24px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:14px;display:grid;gap:5px}
+.tcard{font-family:var(--nft);margin:2px 0 8px 24px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:14px;display:grid;gap:5px}
 .timg{display:block;width:100%;border-radius:8px;overflow:hidden;background:var(--line);margin-bottom:4px}
 .timg img{display:block;width:100%;max-height:220px;object-fit:cover}
 .tcard div{display:grid;grid-template-columns:86px 1fr;gap:8px;overflow-wrap:anywhere}
@@ -467,7 +467,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 .fab{transition:transform .25s ease,opacity .25s ease}
 .fab.tuck{transform:translateY(110px);opacity:0;pointer-events:none}
 .edbody.read strong{font-weight:650}
-.mdh{display:inline-block;font:650 19px/1.35 var(--display);letter-spacing:-.01em;margin-top:4px}
+.mdh{display:inline-block;font:650 19px/1.35 var(--nfd);letter-spacing:-.01em;margin-top:4px}
 .mdh1{font-size:21px}.mdh3{font-size:17px}
 .mdli{display:inline-block;position:relative}
 .mdli::before{content:"•";display:inline-block;width:14px;margin-left:-14px;color:var(--faint)}
@@ -510,7 +510,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.48";
+const APP_VERSION = "1.49";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
