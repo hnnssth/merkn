@@ -510,7 +510,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.44";
+const APP_VERSION = "1.45";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1873,7 +1873,11 @@ function bindShuffle(el){
   const ed = el.querySelector(".ed");
   // Gesten wie bei Karten: rechts = ja (merken), links = nein (nächste), runter = archivieren.
   // Runter nur, wenn die Notiz ganz oben ist und nicht mehr scrollen kann.
-  const start = (x, y, target) => { if (target.closest("textarea,input,button,a,.tree") || document.activeElement?.matches?.("textarea,input")) return null;
+  // Auch auf Text startbar (nur per Finger); bei markiertem Text gehört die Geste dem Markieren
+  const hasSel = el2 => el2 && el2.matches?.("textarea,input") && el2.selectionStart !== el2.selectionEnd;
+  const start = (x, y, target, touchy) => { if (target.closest("button,a,.tree,input:not(#edTitle)")) return null;
+    if (target.closest("textarea") && !touchy) return null;
+    if (hasSel(document.activeElement) || hasSel(target.closest("textarea"))) return null;
     return {x, y, t: Date.now(), dir: "", top: el.scrollTop <= 0, bottom: el.scrollTop + el.clientHeight >= el.scrollHeight - 2}; };
   const vOk = (g, dy) => dy > 0 && g.top;
   let sign = el.querySelector(":scope > .shufsign"); if (!sign) { sign = document.createElement("div"); sign.className = "shufsign"; sign.setAttribute("aria-hidden", "true"); el.appendChild(sign); }
@@ -1883,7 +1887,8 @@ function bindShuffle(el){
   // Karte: folgt dem Finger 1:1, kippt leicht, fliegt beim Loslassen aus dem Bild
   const card = on => { el.classList.toggle("deck", on); ed.classList.toggle("card", on); };
   const move = (g, x, y) => { const dx = x - g.x, dy = y - g.y;
-    if (!g.dir && Math.hypot(dx, dy) > 8) g.dir = Math.abs(dx) > Math.abs(dy) ? "h" : (vOk(g, dy) ? "v" : "x");
+    if (!g.dir && Math.hypot(dx, dy) > (g.onText ? 18 : 8)) { g.dir = Math.abs(dx) > Math.abs(dy) * (g.onText ? 1.6 : 1) ? "h" : (vOk(g, dy) && !g.onText ? "v" : "x");
+      if (g.dir === "h" && document.activeElement?.matches?.("textarea,input")) document.activeElement.blur(); }
     if (g.dir === "h") { card(true); ed.style.transform = `translate(${dx}px, ${dy * .15}px) rotate(${dx * .04}deg) scale(.94)`; showSign(dx > 0 ? "yes" : "no", (Math.abs(dx) - 8) / 70); }
     else if (g.dir === "v" && dy > 0) { card(true); ed.style.transform = `translate(${dx * .15}px, ${dy}px) scale(.94)`; showSign("arch", (dy - 8) / 90); }
     else if (g.dir === "v") { ed.style.transform = "translate(0,0) scale(.94)"; showSign(""); } };
@@ -1894,12 +1899,12 @@ function bindShuffle(el){
     // zurückfedern
     ed.classList.add("back"); ed.style.transform = ""; showSign(""); setTimeout(() => { ed.classList.remove("back"); card(false); }, 200); };
   let g = null;
-  el.ontouchstart = e => { const t = e.touches[0]; g = e.touches.length === 1 ? start(t.clientX, t.clientY, e.target) : null; };
+  el.ontouchstart = e => { const t = e.touches[0]; g = e.touches.length === 1 ? start(t.clientX, t.clientY, e.target, true) : null; if (g) g.onText = !!e.target.closest("textarea"); };
   el.ontouchmove = e => { if (!g) return; const t = e.touches[0]; move(g, t.clientX, t.clientY); if ((g.dir === "h" || g.dir === "v") && e.cancelable) e.preventDefault(); if (g.dir === "x") g = null; };
   el.ontouchend = e => { if (!g) return; const t = e.changedTouches[0]; end(g, t.clientX, t.clientY); g = null; };
   el.ontouchcancel = () => { g = null; ed.style.transform = ""; showSign(""); card(false); };
   // Maus (PC): ziehen mit gedrückter Taste
-  el.onpointerdown = e => { if (e.pointerType !== "mouse") return; g = start(e.clientX, e.clientY, e.target); };
+  el.onpointerdown = e => { if (e.pointerType !== "mouse") return; g = start(e.clientX, e.clientY, e.target, false); };
   el.onpointermove = e => { if (e.pointerType === "mouse" && g && e.buttons) move(g, e.clientX, e.clientY); };
   el.onpointerup = e => { if (e.pointerType === "mouse" && g) { end(g, e.clientX, e.clientY); g = null; } };
   // Nach dem Wischen keinen Klick auslösen (sonst springt der Text in den Bearbeiten-Modus)
