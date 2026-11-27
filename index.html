@@ -104,7 +104,7 @@ button{cursor:pointer;background:none;border:0;padding:0}
 html[data-font="serif"]{--nfd:"Iowan Old Style","Charter","Source Serif 4","Noto Serif",Georgia,"Times New Roman",serif;--nft:"Iowan Old Style","Charter","Source Serif 4","Noto Serif",Georgia,"Times New Roman",serif}
 .nt{font:650 17px/1.3 var(--nfd);letter-spacing:-.01em;margin:0 0 2px;overflow-wrap:anywhere}
 .nt.untitled{color:var(--muted);font-weight:500}
-.nb{color:var(--muted);font-size:15px;line-height:1.45;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.nb{color:var(--muted);font-family:var(--nft);font-size:15px;line-height:1.45;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .nm{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:13px;color:var(--faint)}
 .nm .prog{color:var(--muted);font-weight:600}
 .nm .prog.done{color:var(--privat)}
@@ -510,7 +510,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.47";
+const APP_VERSION = "1.48";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
