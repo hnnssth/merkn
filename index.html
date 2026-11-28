@@ -360,6 +360,17 @@ body.reading{overflow:hidden}
 .tadd:hover,.tadd:focus-visible{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}
 .tprog + .tadd,.tstat + .tadd,.tver + .tadd{margin-left:4px}
 .thint{font-size:12px;color:var(--faint);margin:8px 0 0}
+.tselbox{flex:none;width:20px;height:20px;border:2px solid var(--faint);border-radius:50%;display:grid;place-items:center}
+.trow.tsel{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.trow.tsel .tselbox{background:var(--ink);border-color:var(--ink)}
+.trow.tsel .tselbox::after{content:"";width:9px;height:5px;border:solid var(--bg);border-width:0 0 2px 2px;transform:translateY(-1px) rotate(-45deg)}
+.trow.tunder .tselbox{border-style:dotted}
+#tselbar{z-index:25}
+.mvlist{display:flex;flex-direction:column;max-height:46vh;overflow:auto;border-top:1px solid var(--line);margin-top:10px}
+.mvrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--line);cursor:pointer;text-align:left;min-height:44px}
+.mvrow small{color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap}
+.mvrow .mvind{display:inline-block}
+.mvhead{font-size:12px;color:var(--faint);margin:12px 0 0}
 .trow{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 .taddroot{margin:10px 0 4px;padding:9px 14px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:14px;cursor:pointer}
 .tval{margin:0;cursor:copy;border-radius:4px}
@@ -510,7 +521,7 @@ mark{background:color-mix(in srgb,#f2c94c 55%,transparent);color:inherit;border-
 <script>
 "use strict";
 /* ---------- Grundlagen ---------- */
-const APP_VERSION = "1.49";
+const APP_VERSION = "1.50";
 const AREAS = ["privat","beruflich","freelance"];
 const AREA_NAME = {alle:"Alle", privat:"Privat", beruflich:"Beruflich", freelance:"Freelance"};
 const DEFAULT_KW = {
@@ -1650,8 +1661,8 @@ function treeHTML(nodes, path=""){
     const link = p.link ? (/^https?:\/\//.test(p.link) ? p.link : "https://" + p.link) : "";
     const prog = kids ? treeProgress(n.children) : null, allDone = n.check === true || (n.check === undefined && prog && prog.total && prog.done === prog.total);
     return `<li>
-      <div class="trow${kids ? " branch" : ""}${allDone ? " tdone" : ""}" data-line="${n.line}" data-node="${esc(id)}" data-kids="${kids}" data-info="${hasInfo ? 1 : 0}" role="button" tabindex="0" aria-expanded="${kids ? open : info}">
-        <span class="tchev">${kids ? (open ? "▾" : "▸") : n.check !== undefined ? "" : "•"}</span>
+      <div class="trow${kids ? " branch" : ""}${allDone ? " tdone" : ""}${S.treeSel && S.treeSel.has(n.line) ? " tsel" : ""}${S.treeSel && underSel(n.line) ? " tunder" : ""}" data-line="${n.line}" data-node="${esc(id)}" data-kids="${kids}" data-info="${hasInfo ? 1 : 0}" role="button" tabindex="0" aria-expanded="${kids ? open : info}">
+        ${S.treeSel ? `<span class="tselbox" aria-hidden="true"></span>` : ""}<span class="tchev">${kids ? (open ? "▾" : "▸") : n.check !== undefined ? "" : "•"}</span>
         ${n.check !== undefined ? `<button class="tchk" data-chk="${n.line}" role="checkbox" aria-checked="${n.check}" aria-label="${esc(n.name)} ${n.check ? "erledigt" : "offen"}"></button>` : ""}
         <span class="tname">${esc(n.name)}</span>
         ${prog && prog.total ? `<span class="tprog">${prog.done}/${prog.total}</span>` : ""}
@@ -1706,7 +1717,7 @@ function treeEditDialog(n, line){
     <label class="f" for="teLink" style="margin-top:12px">Link <small>(optional)</small></label>
     <input class="inp" id="teLink" type="url" value="${esc(node.props.link || "")}" placeholder="https://…" autocomplete="off" autocapitalize="off">
     <label class="chkrow"><input type="checkbox" id="teChk" ${node.check !== undefined ? "checked" : ""}><span><strong>Abhakbar</strong><small>Mit Kästchen zum Abhaken.</small></span></label>
-    <div class="row" style="justify-content:flex-start;margin-top:16px"><button class="btn danger" data-del>Löschen${kidsCount ? ` (mit ${kidsCount} ${kidsCount === 1 ? "Eintrag" : "Einträgen"} darunter)` : ""}</button></div>
+    <div class="row" style="justify-content:flex-start;margin-top:16px;flex-wrap:wrap"><button class="btn" data-mv>Verschieben …</button><button class="btn" data-cp>Kopieren …</button><button class="btn danger" data-del>Löschen${kidsCount ? ` (mit ${kidsCount} ${kidsCount === 1 ? "Eintrag" : "Einträgen"} darunter)` : ""}</button></div>
     <div class="row tbtns"><button class="btn" data-x>Abbrechen</button><button class="btn primary" data-ok>Speichern</button></div>`, d => {
     const nm = d.querySelector("#teName");
     const save = () => {
@@ -1723,12 +1734,122 @@ function treeEditDialog(n, line){
     d.querySelector("[data-ok]").onclick = save;
     nm.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); save(); } };
     d.querySelector("[data-x]").onclick = closeDialog;
+    d.querySelector("[data-mv]").onclick = () => moveDialog(n, [node.line], false);
+    d.querySelector("[data-cp]").onclick = () => moveDialog(n, [node.line], true);
     d.querySelector("[data-del]").onclick = () => {
       const before = n.body, rows = n.body.split("\n"); rows.splice(node.line, end - node.line + 1);
       n.body = rows.join("\n"); touch(n, {reclassify:false}); closeDialog(); renderEditor();
       toast(`„${node.name}“ gelöscht.`, "Rückgängig", () => { n.body = before; touch(n, {reclassify:false}); renderEditor(); });
     };
   });
+}
+/* ---------- Baum: Einträge auswählen und in eine andere Notiz verschieben oder kopieren ---------- */
+function treeNodes(text){ const all = []; (function walk(ns){ ns.forEach(x => { all.push(x); walk(x.children); }); })(parseTree(text)); return all; }
+const nodeEnd = x => x.end ?? x.line;
+// liegt diese Zeile unter einem ausgewählten Ast? (dann wird sie ohnehin mitgenommen)
+function underSel(line){
+  if (!S.treeSel || !S.open) return false;
+  return treeNodes(S.open.body).some(x => S.treeSel.has(x.line) && x.line < line && line <= nodeEnd(x));
+}
+function toggleTreeSel(line){ if (!S.treeSel) return; S.treeSel.has(line) ? S.treeSel.delete(line) : S.treeSel.add(line); navigator.vibrate?.(8); renderEditor(); }
+function treeSelBar(){
+  $("#tselbar")?.remove();
+  if (!S.treeSel || !S.open || S.open.kind !== "tree" || S.treeEdit) return;
+  const k = topSel(S.open, [...S.treeSel]).length;
+  const b = document.createElement("div"); b.className = "selbar"; b.id = "tselbar"; b.setAttribute("role", "toolbar"); b.setAttribute("aria-label", "Auswahl im Baum");
+  b.innerHTML = `<div class="selhead"><button id="tsX" aria-label="Auswahl beenden">${ICON.x}</button><span class="selcount">${k} ausgewählt</span></div>
+    <div class="selacts"><button id="tsMove" ${k ? "" : "disabled"}>Verschieben nach …</button><button id="tsCopy" ${k ? "" : "disabled"}>Kopieren nach …</button></div>`;
+  document.body.appendChild(b);
+  b.querySelector("#tsX").onclick = () => { S.treeSel = null; renderEditor(); };
+  b.querySelector("#tsMove").onclick = () => moveDialog(S.open, [...S.treeSel], false);
+  b.querySelector("#tsCopy").onclick = () => moveDialog(S.open, [...S.treeSel], true);
+}
+// nur die obersten ausgewählten Einträge (ein Kind eines ausgewählten Astes zählt nicht extra)
+function topSel(note, lines){
+  const all = treeNodes(note.body), set = new Set(lines);
+  return all.filter(x => set.has(x.line) && !all.some(p => set.has(p.line) && p.line < x.line && x.line <= nodeEnd(p)));
+}
+function moveRecent(id){ let r = []; try { r = JSON.parse(localStorage.getItem("merkn-move-recent")) || []; } catch {} if (id) { r = [id, ...r.filter(x => x !== id)].slice(0, 8); try { localStorage.setItem("merkn-move-recent", JSON.stringify(r)); } catch {} } return r; }
+function moveDialog(src, lines, copy){
+  const sel = topSel(src, lines); if (!sel.length) return;
+  const count = sel.reduce((a, x) => a + 1 + treeNodes(src.body).filter(y => y.line > x.line && y.line <= nodeEnd(x)).length, 0);
+  const what = sel.length === 1 ? `„${sel[0].name}“` : `${sel.length} Einträge`;
+  const recent = moveRecent();
+  const pool = [...S.notes.values()].filter(x => !x._deleted && !x.trashed && x.kind === "tree");
+  const rank = x => { const i = recent.indexOf(x.id); return i < 0 ? 99 : i; };
+  const step1 = () => dialog(`<h2>${copy ? "Kopieren" : "Verschieben"}: ${esc(what)}</h2>
+    <input class="inp" id="mvQ" type="search" placeholder="Notiz suchen …" autocomplete="off" enterkeyhint="search">
+    <div class="mvlist" id="mvList"></div>
+    <div class="row"><button class="btn" data-x>Abbrechen</button></div>`, d => {
+    const q = d.querySelector("#mvQ"), list = d.querySelector("#mvList");
+    const draw = () => {
+      const t = norm(q.value.trim());
+      const hits = pool.filter(x => !t || norm(x.title || "").includes(t) || x.tags.some(g => norm(g).includes(t)))
+        .sort((a, b) => (b === src) - (a === src) || rank(a) - rank(b) || (b.updated > a.updated ? 1 : -1));
+      list.innerHTML = hits.length ? hits.map(x => `<button class="mvrow" data-id="${esc(x.id)}"><span>${esc(x.title || "Ohne Titel")}${x === src ? " <small>(diese Notiz)</small>" : ""}</span><small>${treeProgress(parseTree(x.body)).total || ""}</small></button>`).join("")
+        : `<p class="hint" style="padding:12px 2px">Keine Baum-Notiz gefunden.</p>`;
+      list.querySelectorAll(".mvrow").forEach(b => b.onclick = () => step2(S.notes.get(b.dataset.id)));
+    };
+    q.oninput = draw; draw(); setTimeout(() => q.focus(), 50);
+    d.querySelector("[data-x]").onclick = closeDialog;
+  });
+  const step2 = dst => {
+    if (!dst) return;
+    // Äste der Zielnotiz: alle Einträge ohne Kästchen oder mit Unterpunkten, nicht die verschobenen selbst
+    const inSel = x => dst === src && sel.some(s => s.line <= x.line && x.line <= nodeEnd(s));
+    const branches = treeNodes(dst.body).filter(x => (x.check === undefined || x.children.length) && !inSel(x));
+    dialog(`<h2>Wohin in „${esc(dst.title || "Ohne Titel")}“?</h2>
+      <div class="mvlist">
+        <button class="mvrow" data-l="-1"><span><strong>Oben, als eigener Ast</strong></span></button>
+        ${branches.map(x => `<button class="mvrow" data-l="${x.line}"><span><span class="mvind" style="width:${x.depth * 16}px"></span>${esc(x.name)}</span><small>${x.children.length || ""}</small></button>`).join("")}
+      </div>
+      <div class="row"><button class="btn" data-back>Zurück</button><button class="btn" data-x>Abbrechen</button></div>`, d => {
+      d.querySelector("[data-x]").onclick = closeDialog;
+      d.querySelector("[data-back]").onclick = step1;
+      d.querySelectorAll("[data-l]").forEach(b => b.onclick = () => doMove(dst, +b.dataset.l));
+    });
+  };
+  const doMove = (dst, parentLine) => {
+    const beforeSrc = src.body, beforeDst = dst.body;
+    const srcRows = src.body.split("\n");
+    const blocks = sel.map(x => ({start:x.line, end:nodeEnd(x), depth:x.depth}));
+    const parentNode = parentLine < 0 ? null : treeNodes(dst.body).find(x => x.line === parentLine);
+    const depth = parentNode ? parentNode.depth + 1 : 0;
+    // Zeilen holen und auf die neue Tiefe einrücken
+    const moved = [];
+    for (const b of blocks) for (let i = b.start; i <= b.end; i++) {
+      const raw = srcRows[i]; if (raw == null) continue;
+      const lead = raw.replace(/\t/g, "  ").match(/^ */)[0].length;
+      moved.push(raw.trim() ? "  ".repeat(depth) + " ".repeat(Math.max(0, lead - b.depth * 2)) + raw.replace(/\t/g, "  ").trimStart() : raw);
+    }
+    // aus der Quelle entfernen (von unten nach oben, damit die Zeilennummern stimmen)
+    let removedBefore = 0;
+    if (!copy) {
+      for (const b of [...blocks].sort((a, c) => c.start - a.start)) { srcRows.splice(b.start, b.end - b.start + 1); if (dst === src && parentNode && b.end < parentLine) removedBefore += b.end - b.start + 1; }
+      src.body = srcRows.join("\n");
+    }
+    // in der Zielnotiz einfügen: ans Ende des Astes, offene vor die erledigten
+    const rows = dst.body ? dst.body.split("\n") : [];
+    let at;
+    if (!parentNode) { at = rows.length; while (at > 0 && !rows[at - 1].trim()) at--; }
+    else {
+      const p = treeNodes(dst.body).find(x => x.line === parentLine - removedBefore);
+      at = p ? nodeEnd(p) + 1 : rows.length;
+      const firstDone = p && p.children.find(c => c.check === true);
+      if (firstDone && sel.every(x => x.check !== true)) at = firstDone.line;
+    }
+    rows.splice(at, 0, ...moved); dst.body = rows.join("\n");
+    touch(dst, {reclassify:false}); if (!copy && dst !== src) touch(src, {reclassify:false});
+    moveRecent(dst.id);
+    S.treeSel = null; closeDialog(); renderEditor();
+    const where = `„${dst.title || "Ohne Titel"}${parentNode ? " › " + parentNode.name : ""}“`;
+    toast(`${count === 1 ? "1 Eintrag" : count + " Einträge"} ${copy ? "kopiert" : "verschoben"} nach ${where}.`, "Rückgängig", () => {
+      dst.body = beforeDst; touch(dst, {reclassify:false});
+      if (dst !== src) { src.body = beforeSrc; touch(src, {reclassify:false}); }
+      renderEditor();
+    });
+  };
+  step1();
 }
 /* ---------- Lesemodus: große Schrift, schmale Spalte, keine Knöpfe ---------- */
 function readerSize(d){ let z = 21; try { z = +localStorage.getItem("merkn-read-size") || 21; } catch {} if (d) { z = Math.min(32, Math.max(16, z + d)); try { localStorage.setItem("merkn-read-size", z); } catch {} } return z; }
@@ -1782,30 +1903,36 @@ function sortTreeText(text){
 function bindTree(el){
   const n = S.open;
   el.querySelectorAll(".tchk").forEach(b => b.onclick = e => { e.stopPropagation(); e.preventDefault();
+    if (S.treeSel) { toggleTreeSel(+b.closest(".trow").dataset.line); return; }
     const rows = n.body.split("\n"), i = +b.dataset.chk; if (rows[i] == null) return;
     rows[i] = rows[i].replace(/^(\s*[-*•] +)\[( |x|X)\]/, (m, a, c) => a + (c === " " ? "[x]" : "[ ]"));
     n.body = rows.join("\n"); touch(n, {reclassify:false}); renderEditor(); });
   el.querySelectorAll(".trow").forEach(r => {
     const act = () => { const id = r.dataset.node;
+      if (S.treeSel) { toggleTreeSel(+r.dataset.line); return; }
       if (+r.dataset.kids) { treeOpen.has(id) ? treeOpen.delete(id) : treeOpen.add(id); renderEditor(); return; }
       copyText(r.querySelector(".tname")?.textContent || ""); }; // Blatt: Namen kopieren, Infos über das „i“
     let lp = 0, x0 = 0, y0 = 0, fired = false, ptype = "";
     r.addEventListener("pointerdown", e => { ptype = e.pointerType; if (e.button !== 0 || e.target.closest(".tchk,.tadd,[data-infobtn]")) return; fired = false; x0 = e.clientX; y0 = e.clientY;
-      clearTimeout(lp); lp = setTimeout(() => { fired = true; navigator.vibrate?.(15); treeEditDialog(n, +r.dataset.line); }, 550); });
+      clearTimeout(lp); if (S.treeSel) return; lp = setTimeout(() => { fired = true; navigator.vibrate?.(15); treeEditDialog(n, +r.dataset.line); }, 550); });
     r.addEventListener("pointermove", e => { if (Math.abs(e.clientX - x0) > 8 || Math.abs(e.clientY - y0) > 8) clearTimeout(lp); });
     ["pointerup", "pointercancel", "pointerleave"].forEach(t => r.addEventListener(t, () => clearTimeout(lp)));
-    r.addEventListener("contextmenu", e => { e.preventDefault(); if (ptype === "mouse" && !fired) { clearTimeout(lp); treeEditDialog(n, +r.dataset.line); } });
-    r.onclick = e => { if (fired) { fired = false; return; } if (e.target.closest("[data-infobtn]") || e.target.closest("a")) return; act(); };
+    r.addEventListener("contextmenu", e => { e.preventDefault(); if (ptype === "mouse" && !fired && !S.treeSel) { clearTimeout(lp); treeEditDialog(n, +r.dataset.line); } });
+    r.onclick = e => { if (fired) { fired = false; return; } if (e.target.closest("[data-infobtn]") || e.target.closest("a")) return;
+      if (S.treeSel && e.target.closest(".tchev") && +r.dataset.kids) { const id = r.dataset.node; treeOpen.has(id) ? treeOpen.delete(id) : treeOpen.add(id); renderEditor(); return; } // im Auswahlmodus klappt der Pfeil weiter auf
+      act(); };
     r.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); act(); } };
   });
   el.querySelectorAll(".tadd").forEach(b => b.onclick = e => { e.stopPropagation(); treeAddDialog(n, +b.dataset.add, b.dataset.addid); });
   const ar = el.querySelector("#tAddRoot"); if (ar) ar.onclick = () => treeAddDialog(n, null, null);
   el.querySelectorAll(".tval").forEach(v => v.onclick = () => copyText(v.dataset.copy));
   el.querySelectorAll("[data-infobtn]").forEach(b => b.onclick = () => { const id = b.dataset.infobtn; infoOpen.has(id) ? infoOpen.delete(id) : infoOpen.add(id); renderEditor(); });
-  const ao = $("#tOpen"), ac = $("#tClose"), te = $("#tEdit"), ts = $("#tSort");
+  const ao = $("#tOpen"), ac = $("#tClose"), te = $("#tEdit"), ts = $("#tSort"), tsl = $("#tSelect");
+  if (tsl) tsl.onclick = () => { S.treeSel = S.treeSel ? null : new Set(); renderEditor(); };
+  treeSelBar();
   if (ao) ao.onclick = () => { allTreeIds(parseTree(n.body)).forEach(id => treeOpen.add(id)); renderEditor(); };
   if (ac) ac.onclick = () => { treeOpen.clear(); infoOpen.clear(); renderEditor(); };
-  if (te) te.onclick = () => { S.treeEdit = !S.treeEdit; renderEditor(); if (S.treeEdit) $("#edBody")?.focus(); };
+  if (te) te.onclick = () => { S.treeEdit = !S.treeEdit; S.treeSel = null; renderEditor(); if (S.treeEdit) $("#edBody")?.focus(); };
   if (ts) ts.onclick = () => { n.body = sortTreeText(n.body); edChanged(); renderEditor(); toast("Alphabetisch sortiert."); };
 }
 function replaceDialog(n){
@@ -1826,7 +1953,7 @@ function replaceDialog(n){
 let edSaveTimer;
 function openNote(n, isNew=false){
   if (!n) return;
-  S.open = n; S.openNew = isNew; S.showDone = false; S.bodyEdit = false; S.treeEdit = isNew && n.kind === "tree"; treeOpen.clear(); infoOpen.clear();
+  S.open = n; S.openNew = isNew; S.showDone = false; S.treeSel = null; S.bodyEdit = false; S.treeEdit = isNew && n.kind === "tree"; treeOpen.clear(); infoOpen.clear();
   if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i));
   history.pushState({ed:1}, "");
   renderEditor();
@@ -1930,7 +2057,7 @@ function closeEditor(fromPop=false){
   clearTimeout(edSaveTimer);
   if (isEmpty(n)) { if (S.notes.has(n.id)) removeNote(n); }
   else if (n._edited) { n._edited = false; touch(n); }
-  S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove(); $(".fmtbar")?.remove(); document.body.classList.remove("fmting");
+  S.open = null; S.treeSel = null; $("#tselbar")?.remove(); $("#editor")?.remove(); $(".toolbar")?.remove(); $(".fmtbar")?.remove(); document.body.classList.remove("fmting");
   if (!fromPop && history.state && history.state.ed) history.back();
   render();
 }
@@ -2008,8 +2135,8 @@ function renderEditor(keepFocus=false){
       <button class="iconbtn" id="edMore" aria-label="Weitere Aktionen">${ICON.more}</button>
     </div>
     <textarea id="edTitle" class="edtitle" rows="1"${spellAttr()} placeholder="Titel" autocomplete="off" enterkeyhint="next">${esc(n.title)}</textarea>
-    ${n.kind === "tree" ? `<div class="tbar"><button id="tOpen">Alles auf</button><button id="tClose">Alles zu</button>${S.treeEdit ? `<button id="tSort">A–Z</button>` : ""}<button id="tEdit" class="${S.treeEdit ? "on" : ""}">${S.treeEdit ? "Fertig" : "Bearbeiten"}</button></div>` : ""}
-    ${n.kind === "tree" && !S.treeEdit ? `<div class="treewrap">${parseTree(n.body).length ? treeHTML(parseTree(n.body)) : `<p class="hint">Noch leer. Leg mit „+ Neuer Ast“ los oder tippe auf „Bearbeiten“.</p>`}<button class="taddroot" id="tAddRoot">+ Neuer Ast</button>${parseTree(n.body).length ? `<p class="thint">Eintrag lange drücken (am PC: Rechtsklick) zum Umbenennen oder Löschen.</p>` : ""}</div>`
+    ${n.kind === "tree" ? `<div class="tbar"><button id="tOpen">Alles auf</button><button id="tClose">Alles zu</button>${S.treeEdit ? `<button id="tSort">A–Z</button>` : `<button id="tSelect" class="${S.treeSel ? "on" : ""}">Auswählen</button>`}<button id="tEdit" class="${S.treeEdit ? "on" : ""}">${S.treeEdit ? "Fertig" : "Bearbeiten"}</button></div>` : ""}
+    ${n.kind === "tree" && !S.treeEdit ? `<div class="treewrap">${parseTree(n.body).length ? treeHTML(parseTree(n.body)) : `<p class="hint">Noch leer. Leg mit „+ Neuer Ast“ los oder tippe auf „Bearbeiten“.</p>`}<button class="taddroot" id="tAddRoot">+ Neuer Ast</button>${parseTree(n.body).length ? `<p class="thint">${S.treeSel ? "Einträge antippen zum Auswählen. Ein Ast nimmt alles darunter mit." : "Eintrag lange drücken (am PC: Rechtsklick) zum Umbenennen, Verschieben oder Löschen."}</p>` : ""}</div>`
       : n.kind !== "tree" && !S.bodyEdit && ((URL_RE.lastIndex = 0, URL_RE.test(n.body)) || MD_RE.test(n.body)) && (URL_RE.lastIndex = 0, true) ? `<div id="edRead" class="edbody read" tabindex="0" aria-label="Notiztext, tippen zum Bearbeiten">${renderMd(n.body)}</div>`
       : `<textarea id="edBody"${spellAttr()} class="edbody${n.kind === "tree" ? " mono" : ""}" placeholder="${n.kind === "tree" ? "- Apps&#10;  - Merkn&#10;    version: 1.0&#10;    status: Beta&#10;    info: Notizen-App&#10;    link: hnnssth.github.io/merkn&#10;    seit: 11/2026" : "Notiz"}" rows="${n.items.length ? 1 : 3}" style="${n.items.length ? "min-height:40px" : ""}">${esc(n.body)}</textarea>`}
     ${n.items.length ? `<ul class="items">${openItems.map(itemHTML).join("")}</ul>
@@ -2182,7 +2309,7 @@ function moreMenu(anchor){
     p.querySelector('[data-act="replace"]').onclick = () => { closePop(); replaceDialog(n); };
     p.querySelector('[data-act="tree"]').onclick = () => { closePop(); n.kind = n.kind === "tree" ? "" : "tree"; S.treeEdit = false; treeOpen.clear(); if (n.kind === "tree") parseTree(n.body).forEach((_, i) => treeOpen.add("/" + i)); n._edited = true; edChanged(); renderEditor(); };
     p.querySelector('[data-act="arch"]').onclick = () => { closePop(); n.archived = !n.archived; touch(n, {reclassify:false}); const was = n.archived; closeEditor(); toast(was ? "Archiviert." : "Aus dem Archiv geholt.", "Rückgängig", () => { n.archived = !was; touch(n, {reclassify:false}); render(); }); };
-    const leave = () => { const k = S.open; S.open = null; $("#editor")?.remove(); $(".toolbar")?.remove(); if (history.state && history.state.ed) history.back(); return k; };
+    const leave = () => { const k = S.open; S.open = null; S.treeSel = null; $("#tselbar")?.remove(); $("#editor")?.remove(); $(".toolbar")?.remove(); if (history.state && history.state.ed) history.back(); return k; };
     const del = p.querySelector('[data-act="del"]'); if (del) del.onclick = () => { closePop(); const k = leave(); trashNote(k); render(); };
     const rs = p.querySelector('[data-act="restore"]'); if (rs) rs.onclick = () => { closePop(); const k = leave(); k.trashed = false; k.trashedAt = null; touch(k, {reclassify:false}); render(); toast("Wiederhergestellt."); };
     const pg = p.querySelector('[data-act="purge"]'); if (pg) pg.onclick = () => { closePop(); confirmDialog("Endgültig löschen?", "Die Notiz wird auf allen Geräten entfernt und lässt sich nicht wiederherstellen.", "Endgültig löschen", () => { const k = leave(); removeNote(k); render(); toast("Endgültig gelöscht."); }); };
